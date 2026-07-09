@@ -34,6 +34,7 @@ Semua angka di `scripts/autoload/balance.gd`, dikelompokkan per sistem (PLAYER/C
 ## Warning benign yang diketahui
 
 - `warning: in the working copy of '...', LF will be replaced by CRLF` — perilaku git di Windows, bukan error Godot.
+- `[main] menu` / `[main] gameplay start` — log boot yang disengaja dari main.gd, bukan error.
 - (belum ada warning Godot yang tercatat)
 
 ## Status milestone

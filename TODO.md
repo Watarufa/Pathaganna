@@ -22,14 +22,14 @@ Protokol tiap milestone: (a) smoke test lolos, (b) TODO.md + CLAUDE.md diperbaru
 - [x] Smoke test: import + run 240 frame tanpa ERROR (exit 0, output bersih)
 
 ## M1 — Gerak & Kamera
-- [ ] Graybox datar (lantai + WorldEnvironment dasar + DirectionalLight)
-- [ ] Rig player primitif (pivot bernama) + pose_rig.gd (idle + run cycle sinus + bobbing)
-- [ ] Gerak WASD relatif kamera: akselerasi/deselerasi, rotasi menghadap arah gerak
-- [ ] Kamera third-person SpringArm3D: orbit mouse, pitch −50°..30°, jarak 4.5 m, pivot 1.8 m
-- [ ] Dummy statis ber-hurtbox + health
-- [ ] Lock-on Tab: kamera melunak ke target, strafe, cycle target, auto-lepas (mati / >15 m)
-- [ ] Debug overlay F3: FPS, state, timeline window i-frame/parry/hitbox
-- [ ] Smoke test (menu + `--smoke` gameplay boot)
+- [x] Graybox datar (lantai + WorldEnvironment dasar + DirectionalLight)
+- [x] Rig player primitif (pivot bernama) + pose_rig.gd (idle + run cycle sinus + bobbing)
+- [x] Gerak WASD relatif kamera: akselerasi/deselerasi, rotasi menghadap arah gerak
+- [x] Kamera third-person SpringArm3D: orbit mouse, pitch −50°..30°, jarak 4.5 m, pivot 1.8 m
+- [x] Dummy statis ber-hurtbox + health
+- [x] Lock-on Tab: kamera melunak ke target, strafe, cycle target, auto-lepas (mati / >15 m)
+- [x] Debug overlay F3: FPS, state, timeline window i-frame/parry/hitbox
+- [x] Smoke test (menu + `--smoke` gameplay boot) — exit 0 bersih
 
 ## M2 — COMBAT CORE (FEEL GATE)
 - [ ] Input buffer global 0.15 s
