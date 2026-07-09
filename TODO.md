@@ -13,13 +13,13 @@ Protokol tiap milestone: (a) smoke test lolos, (b) TODO.md + CLAUDE.md diperbaru
 - [x] `TODO.md` (file ini)
 
 ## M0 — Scaffold
-- [ ] `project.godot`: InputMap lengkap, 1280×720, MSAA 2×, V-Sync, nama layer collision
-- [ ] Struktur folder scenes/ scripts/ resources/
-- [ ] 4 autoload terdaftar: `balance.gd`, `game_manager.gd`, `combat_events.gd`, `time_juice.gd`
-- [ ] `balance.gd` berisi seluruh tabel tuning awal
-- [ ] `main.tscn` boot ke menu placeholder (MULAI/KELUAR)
-- [ ] `README.md` (cara main, kontrol, syarat Godot 4.4+)
-- [ ] Smoke test: import + run 240 frame tanpa ERROR
+- [x] `project.godot`: InputMap lengkap, 1280×720, MSAA 2×, V-Sync, nama layer collision
+- [x] Struktur folder scenes/ scripts/ resources/
+- [x] 4 autoload terdaftar: `balance.gd`, `game_manager.gd`, `combat_events.gd`, `time_juice.gd`
+- [x] `balance.gd` berisi seluruh tabel tuning awal
+- [x] `main.tscn` boot ke menu placeholder (MULAI/KELUAR)
+- [x] `README.md` (cara main, kontrol, syarat Godot 4.4+)
+- [x] Smoke test: import + run 240 frame tanpa ERROR (exit 0, output bersih)
 
 ## M1 — Gerak & Kamera
 - [ ] Graybox datar (lantai + WorldEnvironment dasar + DirectionalLight)
