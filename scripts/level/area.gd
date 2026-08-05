@@ -1,16 +1,30 @@
-## Level graybox M1: lantai datar + environment gelap-neon dasar + dummy latihan.
+## Level graybox M2: lantai datar + environment gelap-neon dasar + dummy latihan,
+## plus perakitan sistem per-sesi (style meter, penyulut VFX, HUD).
 ## M4 memecah menjadi 3 zona (Gerbang Kuil, Koridor Terkutuk, Arena Boss).
 extends Node3D
 
 const DUMMY_SCENE := preload("res://scenes/enemies/dummy.tscn")
+const HUD_SCENE := preload("res://scenes/ui/hud.tscn")
 
 func _ready() -> void:
 	_build_environment()
 	_build_graybox()
-	_spawn_dummy()
+	_spawn_dummies()
+	_build_systems()
 
 func get_player_spawn() -> Vector3:
 	return Vector3(0, 0.15, 8)
+
+func _build_systems() -> void:
+	var style := StyleMeter.new()
+	style.name = "StyleMeter"
+	add_child(style)
+
+	var fx := FxSpawner.new()
+	fx.name = "FxSpawner"
+	add_child(fx)
+
+	add_child(HUD_SCENE.instantiate())
 
 func _build_environment() -> void:
 	var env := Environment.new()
@@ -66,7 +80,9 @@ func _static_box(size: Vector3, pos: Vector3, mat: Material) -> void:
 	body.add_child(mi)
 	add_child(body)
 
-func _spawn_dummy() -> void:
-	var d := DUMMY_SCENE.instantiate()
-	d.position = Vector3(0, 0, 0)
-	add_child(d)
+func _spawn_dummies() -> void:
+	# dua dummy: satu di depan spawn, satu terpisah untuk menguji cycle lock-on
+	for pos in [Vector3(0, 0, 0), Vector3(6, 0, -4)]:
+		var d := DUMMY_SCENE.instantiate()
+		d.position = pos
+		add_child(d)

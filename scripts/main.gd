@@ -6,6 +6,7 @@ const MENU_SCENE := "res://scenes/ui/main_menu.tscn"
 const AREA_SCENE := "res://scenes/level/area.tscn"
 const PLAYER_SCENE := "res://scenes/player/player.tscn"
 const OVERLAY_SCENE := "res://scenes/ui/debug_overlay.tscn"
+const COMBAT_SMOKE := "res://scripts/dev/combat_smoke.gd"
 
 var _current: Node = null
 var _overlay: CanvasLayer = null
@@ -13,8 +14,9 @@ var _overlay: CanvasLayer = null
 func _ready() -> void:
 	_overlay = load(OVERLAY_SCENE).instantiate()
 	add_child(_overlay)
-	# `-- --smoke` dari CLI: langsung boot gameplay tanpa menu (untuk smoke test headless)
-	if "--smoke" in OS.get_cmdline_user_args():
+	# `-- --smoke` / `-- --combat-smoke` dari CLI: langsung boot gameplay tanpa menu
+	var args := OS.get_cmdline_user_args()
+	if "--smoke" in args or "--combat-smoke" in args:
 		start_game()
 	else:
 		show_menu()
@@ -42,6 +44,12 @@ func start_game() -> void:
 	player.position = area.get_player_spawn()
 	area.add_child(player)
 	_overlay.player = player
+
+	if "--combat-smoke" in OS.get_cmdline_user_args():
+		var smoke: Node = load(COMBAT_SMOKE).new()
+		smoke.name = "CombatSmoke"
+		smoke.player = player
+		area.add_child(smoke)
 
 func _unhandled_input(event: InputEvent) -> void:
 	# Sementara (sampai pause menu M4): Esc melepas/menangkap mouse saat gameplay
