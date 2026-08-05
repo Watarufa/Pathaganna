@@ -1,18 +1,31 @@
-## Dummy latihan M1/M2: target lock-on ber-hurtbox yang tidak pernah benar-benar mati.
-## M2 menambahkan pola serangan putih/merah berkala. Bukan turunan enemy_base
-## (itu untuk musuh sungguhan di M3) — ini prop latihan.
+## Dummy latihan M2: target lock-on yang menyerang berkala dengan pola campuran
+## putih (parryable) dan merah (wajib dodge). Tidak pernah benar-benar mati —
+## "reboot" lalu kembali penuh, supaya sesi tuning tidak terputus.
+## Bukan turunan enemy_base (itu untuk musuh sungguhan di M3); ini prop latihan.
 class_name TrainingDummy
-extends StaticBody3D
+extends CharacterBody3D
+
+enum State { IDLE, WINDUP, SWING, RECOVER, STAGGER, REBOOT }
+const STATE_NAMES := ["IDLE", "WINDUP", "SWING", "RECOVER", "STAGGER", "REBOOT"]
+
+var state: State = State.IDLE
+var state_time := 0.0
 
 var rig: PoseRig
 var health: Health
 var hurtbox: Hurtbox
+var hitbox: Hitbox
+
 var _screen: MeshInstance3D
+var _cooldown := 0.0
+var _current: Dictionary = {}
+var _hitbox_on := false
 
 func _ready() -> void:
-	collision_layer = 4  # enemy_body
-	collision_mask = 0
 	add_to_group("lockon_targets")
+	add_to_group("enemies")
+	collision_layer = 4   # enemy_body
+	collision_mask = 1    # world
 
 	var col := CollisionShape3D.new()
 	var cap := CapsuleShape3D.new()
@@ -38,11 +51,25 @@ func _ready() -> void:
 	add_child(hurtbox)
 	hurtbox.hit_received.connect(_on_hit)
 
+	hitbox = Hitbox.new()
+	hitbox.name = "Hitbox"
+	hitbox.collision_layer = 64   # enemy_attack
+	hitbox.collision_mask = 8     # player_hurt
+	var hbshape := CollisionShape3D.new()
+	var hbbox := BoxShape3D.new()
+	hbbox.size = Vector3(2.0, 1.8, Balance.DUMMY.white.range)
+	hbshape.shape = hbbox
+	hitbox.add_child(hbshape)
+	hitbox.position = Vector3(0, 1.0, -Balance.DUMMY.white.range * 0.5)
+	add_child(hitbox)
+
 	health = Health.new()
 	health.name = "Health"
 	add_child(health)
 	health.setup(Balance.DUMMY.hp)
 	health.died.connect(_on_pseudo_death)
+
+	_cooldown = Balance.DUMMY.interval
 
 func _build_rig() -> void:
 	rig = PoseRig.new()
@@ -59,28 +86,163 @@ func _build_rig() -> void:
 	rig.attach_cylinder("Hips", 0.28, 0.9, Vector3(0, -0.45, 0), Palette.STONE)
 	# badan berjubah
 	rig.attach_box("Torso", Vector3(0.5, 0.8, 0.32), Vector3(0, 0.2, 0), Palette.CLOTH)
-	# kepala monitor CRT + layar (layar = telegraph diegetik di M2)
+	# kepala monitor CRT — layar wajahnya ADALAH telegraph (diegetik)
 	rig.attach_box("Head", Vector3(0.42, 0.34, 0.38), Vector3(0, 0.17, 0), Palette.METAL)
 	_screen = rig.attach_box("Head", Vector3(0.3, 0.22, 0.02), Vector3(0, 0.17, -0.2), Palette.CRT_SCREEN)
-	# lengan menggantung
+	# lengan
 	rig.attach_capsule("ArmL", 0.07, 0.55, Vector3(0, -0.28, 0), Palette.CLOTH)
 	rig.attach_capsule("ArmR", 0.07, 0.55, Vector3(0, -0.28, 0), Palette.CLOTH)
 
 func get_lockon_point() -> Vector3:
 	return global_position + Vector3.UP * 1.35
 
-# ------------------------------------------------------------- reaksi hit (aktif begitu hitbox player ada di M2)
-func _on_hit(attack: AttackData, hitbox: Area3D) -> void:
+func state_name() -> String:
+	return STATE_NAMES[state]
+
+# ------------------------------------------------------------- FSM
+func _physics_process(delta: float) -> void:
+	state_time += delta
+	if _cooldown > 0.0:
+		_cooldown -= delta
+
+	match state:
+		State.IDLE:
+			_st_idle()
+		State.WINDUP:
+			_st_windup()
+		State.SWING:
+			_st_swing()
+		State.RECOVER:
+			if state_time >= Balance.DUMMY.recover:
+				_change_state(State.IDLE)
+		State.STAGGER:
+			if state_time >= Balance.ENEMY_COMMON.stagger_time:
+				_change_state(State.IDLE)
+		State.REBOOT:
+			if state_time >= Balance.ENEMY_COMMON.die_free_delay:
+				_reboot()
+
+	_face_player(delta)
+	# dummy tidak berjalan — hanya meluncur sesaat dari knockback lalu berhenti
+	var flat := Vector3(velocity.x, 0, velocity.z).move_toward(Vector3.ZERO, 26.0 * delta)
+	velocity.x = flat.x
+	velocity.z = flat.z
+	velocity.y = -0.5 if is_on_floor() else velocity.y - Balance.PLAYER.gravity * delta
+	move_and_slide()
+	_update_visuals()
+
+func _st_idle() -> void:
+	if _cooldown > 0.0:
+		return
+	var p := _player()
+	if p == null or global_position.distance_to(p.global_position) > Balance.DUMMY.attack_range:
+		return
+	var red: bool = randf() < Balance.DUMMY.red_chance
+	_current = Balance.DUMMY.red if red else Balance.DUMMY.white
+	_change_state(State.WINDUP)
+
+func _st_windup() -> void:
+	if state_time >= _current.windup:
+		_change_state(State.SWING)
+
+func _st_swing() -> void:
+	var active: bool = state_time >= _current.hit_start and state_time <= _current.hit_end
+	if active and not _hitbox_on:
+		_hitbox_on = true
+		hitbox.begin(AttackData.make(_current, self, "dummy"))
+	elif not active and _hitbox_on:
+		_stop_hitbox()
+	if state_time >= _current.swing:
+		_stop_hitbox()
+		_cooldown = Balance.DUMMY.interval
+		_change_state(State.RECOVER)
+
+func _stop_hitbox() -> void:
+	if _hitbox_on:
+		_hitbox_on = false
+		hitbox.end()
+
+func _face_player(delta: float) -> void:
+	var p := _player()
+	if p == null or state == State.REBOOT:
+		return
+	var to := p.global_position - global_position
+	if Vector2(to.x, to.z).length_squared() < 0.04:
+		return
+	var speed := 2.0 if state == State.WINDUP else 6.0
+	rotation.y = lerp_angle(rotation.y, atan2(-to.x, -to.z), 1.0 - exp(-speed * delta))
+
+func _player() -> Node3D:
+	return get_tree().get_first_node_in_group("player")
+
+# ------------------------------------------------------------- telegraph diegetik
+func _update_visuals() -> void:
+	match state:
+		State.WINDUP:
+			# layar wajah berkedip: putih = bisa diparry, merah = wajib dodge
+			var blink := fmod(state_time * 12.0, 2.0) < 1.0
+			var telegraph: Material = Palette.TELEGRAPH_WHITE if _current.parryable else Palette.TELEGRAPH_RED
+			_screen.material_override = telegraph if blink else Palette.CRT_SCREEN
+			rig.pose({
+				"Torso": Vector3(-12, 0, 0), "ArmR": Vector3(-150, 0, -20),
+				"ArmL": Vector3(-20, 0, 20), "Head": Vector3(-8, 0, 0),
+			}, 9.0)
+		State.SWING:
+			_screen.material_override = Palette.CRT_SCREEN
+			var k := clampf(state_time / maxf(_current.hit_end, 0.01), 0.0, 1.0)
+			k = k * k * (3.0 - 2.0 * k)
+			rig.snap({
+				"Torso": Vector3(-12, 0, 0).lerp(Vector3(22, 0, 0), k),
+				"ArmR": Vector3(-150, 0, -20).lerp(Vector3(-30, 0, 10), k),
+			})
+		State.STAGGER:
+			_screen.material_override = Palette.CRT_SCREEN
+			rig.pose({
+				"Torso": Vector3(-26, 0, 8), "Head": Vector3(-18, 0, 0),
+				"ArmR": Vector3(-15, 0, -35), "ArmL": Vector3(-15, 0, 35),
+			}, 12.0)
+		State.REBOOT:
+			rig.pose({ "Torso": Vector3(-14, 0, 0), "Head": Vector3(24, 0, 0) }, 6.0)
+		_:
+			_screen.material_override = Palette.CRT_SCREEN
+			rig.pose({
+				"Torso": Vector3.ZERO, "ArmR": Vector3(-8, 0, -6),
+				"ArmL": Vector3(-8, 0, 6), "Head": Vector3.ZERO,
+			}, 8.0)
+
+# ------------------------------------------------------------- reaksi
+func _on_hit(attack: AttackData, hit_from: Area3D) -> void:
+	if state == State.REBOOT:
+		return
 	rig.flash(Balance.JUICE.flash_time)
+	CombatEvents.hit_landed.emit(attack.source, self, attack, hit_from.global_position)
+	if attack.knockback > 0.0 and attack.source is Node3D:
+		var away := global_position - (attack.source as Node3D).global_position
+		away.y = 0.0
+		velocity += away.normalized() * attack.knockback
 	health.damage(attack.damage)
-	CombatEvents.hit_landed.emit(attack.source, self, attack, hitbox.global_position)
+
+## Dipanggil player saat serangan ini berhasil diparry.
+func on_parried(perfect: bool) -> void:
+	_stop_hitbox()
+	if perfect:
+		_change_state(State.STAGGER)
+		CombatEvents.enemy_staggered.emit(self)
+	else:
+		_cooldown = Balance.DUMMY.interval
+		_change_state(State.RECOVER)
 
 func _on_pseudo_death() -> void:
-	# dummy "reboot" — layar padam sebentar lalu pulih; tidak pernah hilang
+	_stop_hitbox()
 	_screen.material_override = Palette.CABLE
-	var t := get_tree().create_timer(1.0)
-	t.timeout.connect(_reboot)
+	HitSpark.spawn(get_parent(), global_position + Vector3.UP * 1.2, Color(0.85, 1.0, 0.9), 30, 8.0)
+	_change_state(State.REBOOT)
 
 func _reboot() -> void:
-	_screen.material_override = Palette.CRT_SCREEN
 	health.heal_full()
+	_cooldown = Balance.DUMMY.interval
+	_change_state(State.IDLE)
+
+func _change_state(new_state: State) -> void:
+	state = new_state
+	state_time = 0.0
