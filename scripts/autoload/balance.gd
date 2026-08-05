@@ -73,16 +73,17 @@ const SKILL := {
 	hit_end = 0.45,
 	radius = 3.5,
 	damage = 45.0,
-	knockdown_time = 1.2,        # musuh biasa knockdown
+	knockback = 5.0,
+	knockdown = true,            # dibaca AttackData → musuh biasa knockdown
+	knockdown_time = 1.2,
 	hitstop = 0.09,
 }
 
 # ------------------------------------------------------------------ game feel
+# Tier hitstop per serangan hidup di COMBO[].hitstop dan PARRY.hitstop_* —
+# di sini hanya scale global + shake + trail/flash.
 const JUICE := {
 	hitstop_scale = 0.05,        # Engine.time_scale saat hitstop
-	hitstop_light = 0.05,        # s real-time
-	hitstop_finisher = 0.09,
-	hitstop_perfect_parry = 0.12,
 	shake_hit_dealt = 0.2,       # trauma (0..1)
 	shake_hit_taken = 0.35,
 	shake_skill = 0.5,
@@ -142,6 +143,7 @@ const DUMMY := {
 	hp = 80.0,
 	attack_range = 3.4,          # mulai menyerang jika player <= jarak ini
 	interval = 2.6,              # jeda antar serangan
+	recover = 0.8,               # jendela hukuman setelah swing
 	red_chance = 0.35,
 	white = { windup = 0.6, swing = 0.3, hit_start = 0.05, hit_end = 0.18, damage = 12.0,
 	          parryable = true, knockback = 3.0, hitstop = 0.05, range = 2.8 },
