@@ -32,17 +32,18 @@ Protokol tiap milestone: (a) smoke test lolos, (b) TODO.md + CLAUDE.md diperbaru
 - [x] Smoke test (menu + `--smoke` gameplay boot) — exit 0 bersih
 
 ## M2 — COMBAT CORE (FEEL GATE)
-- [ ] Input buffer global 0.15 s
-- [ ] Kombo 3-hit + chain + cancel dodge/parry
-- [ ] Dodge + i-frames + perfect dodge (slow-mo + buff +50% + meter)
-- [ ] Parry + perfect parry (stagger + meter + hitstop besar); merah menembus parry
-- [ ] Skill Q (meter penuh, AoE 3.5 m, knockdown)
-- [ ] time_juice: hitstop bertingkat + slow-mo (prioritas min-scale)
-- [ ] Camera shake trauma; weapon trail; hitspark; flash hit; hitstun player
-- [ ] Style meter dasar D→SSS + decay + penalti kena hit
-- [ ] HUD dasar: HP, meter kaset (versi awal), rank
-- [ ] Dummy menyerang berkala pola putih/merah; stagger saat perfect parry
-- [ ] Pause dasar (Esc lepas mouse, lanjut/keluar)
+- [x] Input buffer global 0.15 s
+- [x] Kombo 3-hit + chain + cancel dodge/parry (+ window lanjut kombo 0.5 s setelah dodge-cancel)
+- [x] Dodge + i-frames + perfect dodge (slow-mo + buff +50% + meter)
+- [x] Parry + perfect parry (stagger + meter + hitstop besar); merah menembus parry
+- [x] Skill Q (meter penuh, AoE 3.5 m, knockdown)
+- [x] time_juice: hitstop bertingkat + slow-mo (prioritas min-scale)
+- [x] Camera shake trauma; weapon trail; hitspark; flash hit; hitstun player
+- [x] Style meter dasar D→SSS + decay + penalti kena hit
+- [x] HUD dasar: HP, meter kaset (versi awal), rank
+- [x] Dummy menyerang berkala pola putih/merah; stagger saat perfect parry
+- [x] Pause dasar (Esc lepas mouse, lanjut/keluar)
+- [x] Harness `--combat-smoke`: verifikasi semua state + efek combat, exit 1 kalau gagal
 - [ ] **BERHENTI: instruksi main + checklist rasa ke user; iterasi balance.gd sampai user puas**
 
 ## M3 — Musuh
