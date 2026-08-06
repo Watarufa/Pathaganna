@@ -9,7 +9,8 @@
 ## jadi jadwal berbasis frame akan meleset jauh.
 ##
 ## Keluar dengan exit code 1 jika ada perilaku yang hilang, sehingga smoke test
-## menangkap regresi diam-diam (mis. parry berhenti mengisi meter).
+## menangkap regresi diam-diam (mis. parry berhenti mengisi meter, Penyiar berhenti
+## menembak, atau respawn tidak pernah terjadi).
 extends Node
 
 var player: Player = null
@@ -23,13 +24,18 @@ var _wait := 0.0
 var _pending := {}
 var _timeout := 0.0
 var _done := false
+var _respawn_wait := 0.0
 
 var _seen := {}
 var _enemy_seen := {}
 var _events := {}
 var _meter_peak := 0.0
 
-const STEP_TIMEOUT := 4.0   # detik game-time; langkah yang menggantung = kegagalan
+const STEP_TIMEOUT := 6.0      # detik game-time; langkah yang menggantung = kegagalan
+const RESPAWN_TIMEOUT := 12.0
+## Jauh dari semua titik spawn musuh (deteksi terjauh 14 m), supaya langkah yang
+## menguji mekanik player tidak diganggu musuh yang kebetulan mendekat.
+const QUIET_CORNER := Vector3(20, 0, 15)
 
 func _ready() -> void:
 	process_priority = 100
@@ -41,6 +47,8 @@ func _ready() -> void:
 	CombatEvents.player_died.connect(func() -> void: _mark("player_died"))
 	CombatEvents.skill_used.connect(func() -> void: _mark("skill_used"))
 	CombatEvents.enemy_staggered.connect(func(_e: Node) -> void: _mark("enemy_staggered"))
+	CombatEvents.enemy_died.connect(func(_e: Node) -> void: _mark("enemy_died"))
+	CombatEvents.player_respawned.connect(_on_respawned)
 	CombatEvents.style_changed.connect(func(s: float, _r: String, _c: Color) -> void:
 		if s > 0.0:
 			_mark("style_scored"))
@@ -80,26 +88,48 @@ func _build_steps() -> void:
 		{ act = "", idle_first = true, at_state = "IDLE_RUN", at_time = 0.0, send = red },
 		{ act = "fill_meter", idle_first = true, wait = 0.05 },
 		{ act = "skill", wait = 1.0 },
+
+		# --- musuh sungguhan ---
+		{ act = "heal", wait = 0.05 },
+		# Kultis harus mengejar, menyerang (windup putih), lalu bisa dibunuh
+		{ act = "approach_kultis", wait = 3.0 },
+		{ act = "kill_kultis", wait = 0.4 },
+		# Penyiar harus menjaga jarak dan melepas proyektil merah
+		{ act = "approach_penyiar", wait = 4.0 },
+
+		# --- death loop ---
+		{ act = "retreat", wait = 0.3 },
+		{ act = "heal", wait = 0.05 },
 		{ act = "", idle_first = true, at_state = "IDLE_RUN", at_time = 0.0, send = lethal },
 	]
 
 func _physics_process(delta: float) -> void:
-	if _done or player == null or not is_instance_valid(player):
+	if _done:
 		return
-	_seen[player.state_name()] = true
-	var dummy := _nearest_dummy()
-	if dummy != null and dummy.has_method("state_name"):
-		_enemy_seen[dummy.state_name()] = true
-		# fill layar benar-benar dirender — cek state saja tidak menangkap
-		# kasus hitung mundur yang tidak pernah muncul
-		if dummy._screen_fill != null and dummy._screen_fill.visible:
-			_mark("enemy_fill_shown")
 
-	# Tab harus mengunci lalu MELEPAS, bukan menyiklus ke target lain
-	if player.lockon.target != null:
-		_mark("lockon_acquired")
-	elif _events.has("lockon_acquired"):
-		_mark("lockon_released")
+	# Pencatatan state dilakukan SEBELUM cabang apa pun: state DEAD baru muncul
+	# beberapa frame setelah langkah terakhir, jadi kalau dicatat belakangan ia
+	# terlewat dan tes gagal karena kesalahan harness, bukan kesalahan game.
+	if player != null and is_instance_valid(player):
+		_seen[player.state_name()] = true
+		_track_enemies()
+		# Tab harus mengunci lalu MELEPAS, bukan menyiklus ke target lain
+		if player.lockon.target != null:
+			_mark("lockon_acquired")
+		elif _events.has("lockon_acquired"):
+			_mark("lockon_released")
+
+	# semua langkah selesai → tunggu respawn menyelesaikan death loop
+	if _idx >= _steps.size() and _pending.is_empty():
+		_respawn_wait += delta
+		if _events.has("player_respawned"):
+			_finish()
+		elif _respawn_wait >= RESPAWN_TIMEOUT:
+			_fail("respawn tidak terjadi setelah player mati")
+		return
+
+	if player == null or not is_instance_valid(player):
+		return
 
 	# kirim serangan terjadwal begitu jam FSM player mencapai titik yang diminta
 	if not _pending.is_empty():
@@ -116,9 +146,6 @@ func _physics_process(delta: float) -> void:
 	if _wait > 0.0:
 		_wait -= delta
 		return
-	if _idx >= _steps.size():
-		_finish()
-		return
 
 	var step: Dictionary = _steps[_idx]
 	if step.get("idle_first", false) and player.state_name() != "IDLE_RUN":
@@ -131,17 +158,48 @@ func _physics_process(delta: float) -> void:
 	_timeout = STEP_TIMEOUT
 	_run(step)
 
+## Catat state tiap jenis musuh + apakah telegraph & proyektilnya benar-benar hidup.
+func _track_enemies() -> void:
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if not is_instance_valid(e) or not e.has_method("state_name"):
+			continue
+		var key: String = e.get_script().resource_path.get_file().get_basename()
+		_enemy_seen[key + ":" + e.state_name()] = true
+		if e.screen != null and e.screen.is_filling():
+			_mark("telegraph_fill_shown")
+	for n in get_tree().get_nodes_in_group("projectiles"):
+		if is_instance_valid(n):
+			_mark("projectile_fired")
+
 func _run(step: Dictionary) -> void:
 	match step.get("act", ""):
 		"approach":
-			var dummy := _nearest_dummy()
+			# Fase mekanik player dijalankan di sudut terpencil bersama dummy:
+			# kalau dilakukan di dekat spawn Kultis, Kultis mengejar dan hit-nya
+			# membuat player hitstun di tengah langkah — buffer hilang, tes rapuh.
+			var dummy := _nearest_of("dummy")
 			if dummy != null:
-				player.global_position = dummy.global_position + Vector3(0, 0.15, 2.0)
-				player.rotation = Vector3.ZERO
-				player.rotation.y = PI
-				# lepas cooldown awal supaya dummy pasti menyerang dalam skenario —
-				# tanpa ini jalur telegraph (windup → swing) tidak pernah tereksekusi
-				dummy._cooldown = 0.0
+				dummy.global_position = QUIET_CORNER
+				_place_player_near(dummy, 2.0)
+				dummy._cooldown = 0.0  # lepas cooldown awal supaya telegraph pasti jalan
+		"retreat":
+			player.global_position = QUIET_CORNER + Vector3(0, 0.15, 3.0)
+			player.velocity = Vector3.ZERO
+		"approach_kultis":
+			var k := _nearest_of("kultis")
+			if k != null:
+				_place_player_near(k, 3.0)
+		"approach_penyiar":
+			var s := _nearest_of("penyiar")
+			if s != null:
+				_place_player_near(s, 10.0)
+		"kill_kultis":
+			var k := _nearest_of("kultis")
+			if k != null:
+				var lethal := { damage = 999.0, parryable = true, knockback = 0.0, hitstop = 0.0 }
+				k.hurtbox.receive(AttackData.make(lethal, player, "smoke"), player.hurtbox)
+		"heal":
+			player.health.heal_full()
 		"attack", "dodge", "parry", "skill", "lockon":
 			_tap(step.act)
 		"fill_meter":
@@ -151,6 +209,12 @@ func _run(step: Dictionary) -> void:
 		_pending = { at_state = step.at_state, at_time = step.at_time, send = step.send }
 		_wait = 0.0
 
+func _place_player_near(node: Node3D, distance: float) -> void:
+	player.global_position = node.global_position + Vector3(0, 0.15, distance)
+	player.global_position.y = maxf(player.global_position.y, 0.15)
+	player.rotation = Vector3.ZERO
+	player.rotation.y = PI
+
 func _tap(action: String) -> void:
 	Input.action_press(action)
 	get_tree().physics_frame.connect(Input.action_release.bind(action), CONNECT_ONE_SHOT)
@@ -158,14 +222,30 @@ func _tap(action: String) -> void:
 func _send(data: Dictionary) -> void:
 	if player == null or not is_instance_valid(player):
 		return
-	player.hurtbox.receive(AttackData.make(data, _nearest_dummy(), "smoke"), player.hurtbox)
+	player.hurtbox.receive(AttackData.make(data, _nearest_of("dummy"), "smoke"), player.hurtbox)
 
-func _nearest_dummy() -> Node3D:
-	var list := get_tree().get_nodes_in_group("enemies")
-	return list[0] if not list.is_empty() else null
+func _nearest_of(script_name: String) -> Node3D:
+	var best: Node3D = null
+	var best_d := INF
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if not is_instance_valid(e):
+			continue
+		if not e.get_script().resource_path.ends_with(script_name + ".gd"):
+			continue
+		if e.has_method("is_alive") and not e.is_alive():
+			continue
+		var d: float = player.global_position.distance_to(e.global_position)
+		if d < best_d:
+			best_d = d
+			best = e
+	return best
 
 func _mark(key: String) -> void:
 	_events[key] = true
+
+func _on_respawned() -> void:
+	_mark("player_respawned")
+	player = get_tree().get_first_node_in_group("player")
 
 func _on_hit_landed(attacker: Node, _t: Node, _a: AttackData, _p: Vector3) -> void:
 	if attacker != null and is_instance_valid(attacker) and attacker.is_in_group("player"):
@@ -183,7 +263,10 @@ func _finish() -> void:
 	_done = true
 	var states := _seen.keys()
 	states.sort()
-	print("[combat-smoke] state: ", ", ".join(states))
+	var enemy_states := _enemy_seen.keys()
+	enemy_states.sort()
+	print("[combat-smoke] player: ", ", ".join(states))
+	print("[combat-smoke] musuh: ", ", ".join(enemy_states))
 
 	var missing: Array[String] = []
 	for s in Player.STATE_NAMES:
@@ -191,17 +274,20 @@ func _finish() -> void:
 			missing.append("state:" + s)
 	for key in ["player_hit_landed", "parry_perfect", "parry_normal", "enemy_staggered",
 			"perfect_dodge", "player_damaged", "skill_used", "player_died", "style_scored",
-			"enemy_fill_shown", "lockon_acquired", "lockon_released"]:
+			"telegraph_fill_shown", "lockon_acquired", "lockon_released",
+			"enemy_died", "projectile_fired", "player_respawned"]:
 		if not _events.has(key):
 			missing.append(key)
-	for s in ["WINDUP", "SWING"]:
-		if not _enemy_seen.has(s):
-			missing.append("enemy:" + s)
+	# musuh sungguhan harus benar-benar mengejar dan menyerang, bukan diam
+	for key in ["kultis:CHASE", "kultis:WINDUP", "kultis:SWING",
+			"penyiar:CHASE", "penyiar:WINDUP"]:
+		if not _enemy_seen.has(key):
+			missing.append("enemy_state:" + key)
 	if _meter_peak <= 0.0:
 		missing.append("meter_gain")
 
 	if missing.is_empty():
-		print("[combat-smoke] OK — semua state & efek combat terverifikasi (meter puncak %.0f)" % _meter_peak)
+		print("[combat-smoke] OK — semua state & efek terverifikasi (meter puncak %.0f)" % _meter_peak)
 		get_tree().quit(0)
 	else:
 		printerr("[combat-smoke] GAGAL — tidak terjadi: ", ", ".join(missing))
