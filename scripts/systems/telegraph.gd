@@ -11,12 +11,17 @@
 class_name Telegraph
 extends RefCounted
 
-## Seberapa jauh pose "siap" sudah terangkat (0..1). Naik cepat lalu melambat,
-## jadi perubahan besar terjadi di awal dan mata punya waktu menyesuaikan.
+## Seberapa jauh pose "siap" sudah terangkat (0..1).
+##
+## Smoothstep, bukan ease-out: mulai pelan (terasa berat), mengalir di tengah,
+## lalu melambat mendekati pose siap sehingga terbaca sebagai MENAHAN di puncak.
+## Kurva ease-out yang front-loaded menyelesaikan sebagian besar gerakan di
+## sepertiga pertama lalu praktis diam — itu terlihat seperti sentakan, bukan
+## ancaman yang bisa dilacak mata.
 static func raise_amount(state_time: float, windup: float) -> float:
 	var t := clampf(state_time / maxf(windup, 0.001), 0.0, 1.0)
 	var k := clampf(t / float(Balance.TELEGRAPH.coil_at), 0.0, 1.0)
-	return 1.0 - (1.0 - k) * (1.0 - k)
+	return k * k * (3.0 - 2.0 * k)
 
 ## Anticipation di ujung windup (0..1): tarikan balik singkat sebelum pukulan.
 static func coil_amount(state_time: float, windup: float) -> float:
@@ -27,26 +32,26 @@ static func coil_amount(state_time: float, windup: float) -> float:
 	var k := clampf((t - c) / maxf(1.0 - c, 0.001), 0.0, 1.0)
 	return k * k * (3.0 - 2.0 * k)
 
-## Kedip layar yang mengencang mendekati pukulan — sinyal timing kedua,
-## terbaca bahkan di sudut kamera yang menyembunyikan lengan.
+## Progres telegraph 0..1 untuk hitung mundur di layar musuh.
 ##
-## Frekuensi naik linear, jadi fase harus INTEGRAL frekuensi, bukan hz * t:
-## yang terakhir membuat fase melompat mundur setiap kali hz berubah, dan
-## kedipnya terlihat acak alih-alih mengencang.
-static func blink_on(state_time: float, windup: float) -> bool:
-	var t := clampf(state_time, 0.0, maxf(windup, 0.001))
-	var f0: float = Balance.TELEGRAPH.blink_hz_start
-	var f1: float = Balance.TELEGRAPH.blink_hz_end
-	var slope := (f1 - f0) / maxf(windup, 0.001)
-	var phase := f0 * t + 0.5 * slope * t * t
-	return fmod(phase, 1.0) < 0.5
+## LINEAR terhadap waktu — sengaja, tidak di-ease: persentase yang dilihat
+## pemain harus benar-benar sama dengan sisa waktu. 1.0 = pukulan dimulai.
+static func fill_amount(state_time: float, windup: float) -> float:
+	return clampf(state_time / maxf(windup, 0.001), 0.0, 1.0)
 
-## Material layar/telegraph untuk frame ini: berkedip lalu menyala solid saat coil.
-static func screen_material(state_time: float, windup: float, parryable: bool, idle_mat: Material) -> Material:
-	var lit: Material = Palette.TELEGRAPH_WHITE if parryable else Palette.TELEGRAPH_RED
-	if coil_amount(state_time, windup) >= Balance.TELEGRAPH.solid_at:
-		return lit
-	return lit if blink_on(state_time, windup) else idle_mat
+## Denyut glow di ujung fill: naik-turun tanpa pernah padam.
+##
+## Menandakan urgensi tanpa mengaburkan gerakan tubuh — kedip on/off justru
+## menyembunyikan pose tepat di momen yang paling perlu dibaca pemain.
+## Denyut dihitung dari JUMLAH SIKLUS sepanjang fase akhir, bukan Hz, supaya
+## polanya identik untuk windup pendek maupun panjang.
+static func pulse_energy(fill: float, base: float) -> float:
+	var start: float = Balance.TELEGRAPH.pulse_start
+	if fill < start:
+		return base
+	var k := (fill - start) / maxf(1.0 - start, 0.001)
+	var wave := 0.5 + 0.5 * sin(k * TAU * float(Balance.TELEGRAPH.pulse_cycles))
+	return base * (1.0 + wave * float(Balance.TELEGRAPH.pulse_amount))
 
 ## Interpolasi dua pose (dictionary nama pivot → euler derajat).
 ## Kedua pose harus punya kunci yang sama.

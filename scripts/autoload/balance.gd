@@ -142,10 +142,10 @@ const ENEMY_COMMON := {
 # supaya serangan cepat dan lambat sama-sama terbaca).
 # Warna memberi tahu APA (putih=parry / merah=dodge); gerakan memberi tahu KAPAN.
 const TELEGRAPH := {
-	coil_at = 0.7,               # fraksi windup saat anticipation (tarikan balik) mulai
-	blink_hz_start = 3.5,        # kedip layar di awal windup
-	blink_hz_end = 15.0,         # ...mengencang sampai sini tepat sebelum pukulan
-	solid_at = 0.45,             # coil_amount di atas ini → layar menyala solid ("terkunci")
+	coil_at = 0.75,              # fraksi windup saat anticipation (tarikan balik) mulai
+	pulse_start = 0.85,          # fill di atas ini → glow layar mulai berdenyut
+	pulse_cycles = 3.0,          # jumlah denyut sepanjang fase akhir
+	pulse_amount = 0.9,          # amplitudo denyut relatif terhadap energi dasar
 }
 
 # Dummy latihan M1/M2 (tidak pernah mati; HP reset otomatis)
@@ -155,9 +155,10 @@ const DUMMY := {
 	interval = 2.6,              # jeda antar serangan
 	recover = 0.8,               # jendela hukuman setelah swing
 	red_chance = 0.35,
-	white = { windup = 0.6, swing = 0.3, hit_start = 0.05, hit_end = 0.18, damage = 12.0,
+	# windup dummy sengaja lebih lega dari musuh sungguhan — ini target latihan
+	white = { windup = 0.9, swing = 0.3, hit_start = 0.05, hit_end = 0.18, damage = 12.0,
 	          parryable = true, knockback = 3.0, hitstop = 0.05, range = 2.8 },
-	red   = { windup = 0.7, swing = 0.3, hit_start = 0.05, hit_end = 0.18, damage = 10.0,
+	red   = { windup = 1.0, swing = 0.3, hit_start = 0.05, hit_end = 0.18, damage = 10.0,
 	          parryable = false, knockback = 4.0, hitstop = 0.05, range = 2.8 },
 }
 
