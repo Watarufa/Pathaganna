@@ -56,11 +56,14 @@ Protokol tiap milestone: (a) smoke test lolos, (b) TODO.md + CLAUDE.md diperbaru
 - [ ] **Menunggu user cek ulang keterbacaan telegraph sebelum lanjut M3**
 
 ## M3 — Musuh
-- [ ] enemy_base.gd (health, telegraph, stagger, deteksi, mati, event style)
-- [ ] Kultis CRT: AI kejar/serang/recovery, tebasan putih + kombo 2-hit, layar wajah telegraph, mati padam
-- [ ] Penyiar: melayang, jaga jarak 8–12 m, proyektil merah windup 0.8 s
-- [ ] Spawn per zona (batas 6 aktif)
-- [ ] Mati player → layar kalah sementara → respawn
+- [x] `TelegraphScreen` diangkat jadi komponen bersama (dummy, Kultis, Penyiar, nanti boss)
+- [x] enemy_base.gd (health, telegraph, stagger, knockdown, deteksi, mati, event style)
+- [x] Kultis CRT: AI kejar/serang/recovery, tebasan putih + kombo 2-hit, layar wajah telegraph, mati padam
+- [x] Penyiar: melayang, jaga jarak 8–12 m (strafe di jarak ideal), proyektil merah windup 0.8 s
+- [x] Spawn per zona (5 musuh — di bawah batas 6 aktif)
+- [x] Mati player → layar kalah "SINYAL HILANG" → auto-respawn + reset musuh
+- [x] Harness diperluas: state Kultis/Penyiar, proyektil, musuh mati, respawn
+- [x] Histeresis lock-on (break_range 18 > acquire 15) supaya lock tidak berkedip di batas
 
 ## M4 — Level & Loop
 - [ ] 3 zona ter-dressing dasar (Gerbang Kuil, Koridor Terkutuk, Arena)
