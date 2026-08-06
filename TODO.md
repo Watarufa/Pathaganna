@@ -66,12 +66,14 @@ Protokol tiap milestone: (a) smoke test lolos, (b) TODO.md + CLAUDE.md diperbaru
 - [x] Histeresis lock-on (break_range 18 > acquire 15) supaya lock tidak berkedip di batas
 
 ## M4 — Level & Loop
-- [ ] 3 zona ter-dressing dasar (Gerbang Kuil, Koridor Terkutuk, Arena)
-- [ ] 2 Ganna berfungsi (E, sigil ungu, checkpoint)
-- [ ] Death loop utuh: respawn player + musuh, meter dipertahankan
-- [ ] HUD final (kaset styled, prompt kontekstual)
-- [ ] Pause menu final
-- [ ] `# P1: essence drop here` di titik kematian
+- [x] Kit props (`props.gd`): pilar berkabel, kabel akar, tumpukan CRT berkedip, antena, lilin, reruntuhan
+- [x] 3 zona ter-dressing (Gerbang Kuil, Koridor Terkutuk, Arena melingkar)
+- [x] 2 Ganna berfungsi (E, sigil ungu berputar, checkpoint, pulihkan HP)
+- [x] Death loop utuh: respawn di Ganna terakhir + reset musuh, meter dipertahankan
+- [x] HUD final (kaset styled, prompt kontekstual)
+- [x] Pause menu (Esc): lanjut / keluar ke menu
+- [x] `# P1: essence drop here` di titik kematian (player.gd `_on_died`)
+- [x] Harness: aktivasi Ganna + respawn mendarat di checkpoint, bukan titik awal
 
 ## M5 — Boss & Layar
 - [ ] Arena + gerbang menutup
