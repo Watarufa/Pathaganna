@@ -33,9 +33,10 @@ var _meter_peak := 0.0
 
 const STEP_TIMEOUT := 6.0      # detik game-time; langkah yang menggantung = kegagalan
 const RESPAWN_TIMEOUT := 12.0
-## Jauh dari semua titik spawn musuh (deteksi terjauh 14 m), supaya langkah yang
-## menguji mekanik player tidak diganggu musuh yang kebetulan mendekat.
-const QUIET_CORNER := Vector3(20, 0, 15)
+## Sudut halaman zona 1: di dalam lantai (x −17…17, z −9…17) tapi lebih jauh dari
+## radius deteksi terjauh (14 m) ke semua spawn musuh, supaya langkah yang menguji
+## mekanik player tidak diganggu musuh yang kebetulan mendekat.
+const QUIET_CORNER := Vector3(-13, 0, 13)
 
 func _ready() -> void:
 	process_priority = 100
@@ -49,6 +50,7 @@ func _ready() -> void:
 	CombatEvents.enemy_staggered.connect(func(_e: Node) -> void: _mark("enemy_staggered"))
 	CombatEvents.enemy_died.connect(func(_e: Node) -> void: _mark("enemy_died"))
 	CombatEvents.player_respawned.connect(_on_respawned)
+	CombatEvents.checkpoint_activated.connect(func(_id: String) -> void: _mark("checkpoint_set"))
 	CombatEvents.style_changed.connect(func(s: float, _r: String, _c: Color) -> void:
 		if s > 0.0:
 			_mark("style_scored"))
@@ -97,8 +99,10 @@ func _build_steps() -> void:
 		# Penyiar harus menjaga jarak dan melepas proyektil merah
 		{ act = "approach_penyiar", wait = 4.0 },
 
-		# --- death loop ---
-		{ act = "retreat", wait = 0.3 },
+		# --- checkpoint & death loop ---
+		# aktifkan Ganna kedua, lalu mati: respawn harus di Ganna itu, bukan di awal
+		{ act = "goto_ganna", wait = 0.5 },
+		{ act = "interact", wait = 0.4 },
 		{ act = "heal", wait = 0.05 },
 		{ act = "", idle_first = true, at_state = "IDLE_RUN", at_time = 0.0, send = lethal },
 	]
@@ -185,6 +189,13 @@ func _run(step: Dictionary) -> void:
 		"retreat":
 			player.global_position = QUIET_CORNER + Vector3(0, 0.15, 3.0)
 			player.velocity = Vector3.ZERO
+		"goto_ganna":
+			var g := _last_ganna()
+			if g != null:
+				player.global_position = g.global_position + Vector3(0, 0.15, 1.6)
+				player.velocity = Vector3.ZERO
+		"interact":
+			_tap("interact")
 		"approach_kultis":
 			var k := _nearest_of("kultis")
 			if k != null:
@@ -224,6 +235,15 @@ func _send(data: Dictionary) -> void:
 		return
 	player.hurtbox.receive(AttackData.make(data, _nearest_of("dummy"), "smoke"), player.hurtbox)
 
+## Ganna paling dalam (z paling kecil) — checkpoint yang bukan titik mulai,
+## supaya respawn benar-benar membuktikan checkpoint dipakai.
+func _last_ganna() -> Node3D:
+	var best: Node3D = null
+	for g in get_tree().get_nodes_in_group("ganna"):
+		if is_instance_valid(g) and (best == null or g.global_position.z < best.global_position.z):
+			best = g
+	return best
+
 func _nearest_of(script_name: String) -> Node3D:
 	var best: Node3D = null
 	var best_d := INF
@@ -246,6 +266,10 @@ func _mark(key: String) -> void:
 func _on_respawned() -> void:
 	_mark("player_respawned")
 	player = get_tree().get_first_node_in_group("player")
+	# respawn harus mendarat di Ganna yang diaktifkan, bukan di mulut kuil
+	var g := _last_ganna()
+	if g != null and player != null and player.global_position.distance_to(g.global_position) <= 5.0:
+		_mark("respawned_at_ganna")
 
 func _on_hit_landed(attacker: Node, _t: Node, _a: AttackData, _p: Vector3) -> void:
 	if attacker != null and is_instance_valid(attacker) and attacker.is_in_group("player"):
@@ -275,7 +299,8 @@ func _finish() -> void:
 	for key in ["player_hit_landed", "parry_perfect", "parry_normal", "enemy_staggered",
 			"perfect_dodge", "player_damaged", "skill_used", "player_died", "style_scored",
 			"telegraph_fill_shown", "lockon_acquired", "lockon_released",
-			"enemy_died", "projectile_fired", "player_respawned"]:
+			"enemy_died", "projectile_fired", "player_respawned",
+			"checkpoint_set", "respawned_at_ganna"]:
 		if not _events.has(key):
 			missing.append(key)
 	# musuh sungguhan harus benar-benar mengejar dan menyerang, bukan diam
