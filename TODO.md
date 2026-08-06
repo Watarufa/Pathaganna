@@ -27,7 +27,8 @@ Protokol tiap milestone: (a) smoke test lolos, (b) TODO.md + CLAUDE.md diperbaru
 - [x] Gerak WASD relatif kamera: akselerasi/deselerasi, rotasi menghadap arah gerak
 - [x] Kamera third-person SpringArm3D: orbit mouse, pitch −50°..30°, jarak 4.5 m, pivot 1.8 m
 - [x] Dummy statis ber-hurtbox + health
-- [x] Lock-on Tab: kamera melunak ke target, strafe, cycle target, auto-lepas (mati / >15 m)
+- [x] Lock-on Tab: kamera melunak ke target, strafe, auto-lepas (mati / >15 m)
+      (Tab direvisi jadi kunci/lepas + ganti target lewat geser mouse — feedback feel gate)
 - [x] Debug overlay F3: FPS, state, timeline window i-frame/parry/hitbox
 - [x] Smoke test (menu + `--smoke` gameplay boot) — exit 0 bersih
 

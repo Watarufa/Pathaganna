@@ -25,7 +25,8 @@ dirakit dari primitif, kode, dan partikel. Estetika stylized gelap ber-aksen neo
 | Parry | Klik kanan |
 | Dodge roll | Shift atau Space |
 | Skill | Q |
-| Lock-on / ganti target | Tab |
+| Lock-on: kunci / lepas | Tab |
+| Ganti target (saat terkunci) | Geser mouse ke arah musuh lain |
 | Interaksi (Ganna) | E |
 | Pause | Esc |
 | Debug overlay | F3 |

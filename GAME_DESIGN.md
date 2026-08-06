@@ -38,7 +38,8 @@ Kultus kuno pemuja **"Siaran"** — sinyal dari sesuatu di seberang. Kuil batu d
 | Parry | Klik kanan | `parry` |
 | Dodge roll | Shift **atau** Space | `dodge` |
 | Skill | Q | `skill` |
-| Lock-on / ganti target | Tab | `lockon` |
+| Lock-on: kunci / lepas | Tab | `lockon` |
+| Ganti target (saat terkunci) | Geser mouse ke arah musuh lain | (mouse motion) |
 | Interaksi (Ganna) | E | `interact` |
 | Pause | Esc | `pause` |
 | Debug overlay | F3 | `debug_overlay` |
@@ -279,7 +280,7 @@ Poin yang butuh penilaian manusia diverifikasi oleh user di M6, bukan dicentang 
 - **2026-07-09 — Godot 4.7 stable.** Zip `Godot_v4.7-stable_win64.exe.zip` milik user (Downloads) diekstrak ke `%LOCALAPPDATA%\Programs\Godot\`; dipakai exe console. Memenuhi syarat ≥ 4.4.
 - **2026-07-09 — Chain point kombo.** Spec hanya mendefinisikan cancel point dodge/parry. Keputusan: serangan lanjutan (buffered) dieksekusi mulai **akhir window hitbox** serangan berjalan (A1 0.22 s, A2 0.24 s) — chaining tidak pernah membatalkan hit yang sedang aktif, tapi tetap jauh lebih cepat daripada menunggu durasi penuh.
 - **2026-07-09 — Bentuk hitbox serangan player.** Box arc di depan player (bukan mengikuti bilah presisi) — lebih generoous dan konsisten, sesuai pillar combat feel; visual bilah tetap mengikuti pose.
-- **2026-07-09 — Perilaku Tab.** Tanpa target → lock ke kandidat terbaik; dengan target → cycle ke kandidat lain; jika tidak ada kandidat lain → unlock. Auto-unlock saat target mati / > 15 m.
+- **2026-07-09 — Perilaku Tab (direvisi, feedback feel gate).** Awalnya Tab menyiklus target. User menilai menekan tombol lock saat sudah terkunci seharusnya **melepas**, bukan berpindah. Sekarang: Tab murni kunci/lepas, dan ganti target dilakukan dengan **menggeser mouse** ke arah musuh lain (akumulasi + ambang + cooldown, kandidat dipilih berdasarkan sudut horizontal relatif arah pandang kamera sehingga target di luar layar tetap terjangkau). Lebih langsung saat dikepung daripada menyiklus daftar, dan cocok dengan konvensi soulslike. Auto-unlock saat target mati / > 15 m tidak berubah.
 - **2026-07-09 — Style gain parry.** "+80 perfect dodge/parry" dibaca: parry (normal maupun perfect) +80, perfect dodge +80. Diferensiasi normal vs perfect parry sudah lewat meter (+10/+30) dan stagger.
 - **2026-07-09 — Window hitbox skill.** Durasi 0.8 s tanpa window di spec → hitbox area aktif 0.25–0.45 s (windup berbobot, recovery jelas).
 - **2026-07-09 — Dodge → attack.** Serangan boleh keluar dari dodge setelah i-frames berakhir (0.32 s) agar flow ofensif terjaga.
