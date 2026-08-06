@@ -57,6 +57,9 @@ func _build_steps() -> void:
 
 	_steps = [
 		{ act = "approach", wait = 0.1 },
+		# Tab = kunci, lalu Tab lagi = LEPAS (bukan pindah target)
+		{ act = "lockon", wait = 0.15 },
+		{ act = "lockon", wait = 0.15 },
 		# kombo A1 → A2 → A3 lewat input buffer
 		{ act = "attack", wait = 0.20 },
 		{ act = "attack", wait = 0.22 },
@@ -91,6 +94,12 @@ func _physics_process(delta: float) -> void:
 		# kasus hitung mundur yang tidak pernah muncul
 		if dummy._screen_fill != null and dummy._screen_fill.visible:
 			_mark("enemy_fill_shown")
+
+	# Tab harus mengunci lalu MELEPAS, bukan menyiklus ke target lain
+	if player.lockon.target != null:
+		_mark("lockon_acquired")
+	elif _events.has("lockon_acquired"):
+		_mark("lockon_released")
 
 	# kirim serangan terjadwal begitu jam FSM player mencapai titik yang diminta
 	if not _pending.is_empty():
@@ -133,7 +142,7 @@ func _run(step: Dictionary) -> void:
 				# lepas cooldown awal supaya dummy pasti menyerang dalam skenario —
 				# tanpa ini jalur telegraph (windup → swing) tidak pernah tereksekusi
 				dummy._cooldown = 0.0
-		"attack", "dodge", "parry", "skill":
+		"attack", "dodge", "parry", "skill", "lockon":
 			_tap(step.act)
 		"fill_meter":
 			player._add_meter(Balance.SKILL.meter_max)
@@ -182,7 +191,7 @@ func _finish() -> void:
 			missing.append("state:" + s)
 	for key in ["player_hit_landed", "parry_perfect", "parry_normal", "enemy_staggered",
 			"perfect_dodge", "player_damaged", "skill_used", "player_died", "style_scored",
-			"enemy_fill_shown"]:
+			"enemy_fill_shown", "lockon_acquired", "lockon_released"]:
 		if not _events.has(key):
 			missing.append(key)
 	for s in ["WINDUP", "SWING"]:
