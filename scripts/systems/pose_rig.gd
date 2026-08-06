@@ -16,6 +16,17 @@ var _speeds := {}      # String -> float kecepatan blend
 var _cycle_phase := 0.0
 var _flash_until_ms := -1
 
+## Jam state yang sudah diinterpolasi ke frame render saat ini.
+##
+## Pose yang di-`snap()` harus digambar dari `_process` (laju render), bukan
+## `_physics_process` (60 Hz) — kalau tidak, pose cuma berubah 60×/detik
+## sementara kamera bergerak jauh lebih cepat, dan itu terbaca sebagai stutter.
+## Interpolasi ini menjaga presisinya tetap utuh terhadap jam FSM, jadi aturan
+## arsitektur #2 tidak dilanggar: timing tetap milik `state_time`.
+static func visual_time(state_time: float, physics_delta: float) -> float:
+	var frac := clampf(Engine.get_physics_interpolation_fraction(), 0.0, 1.0)
+	return state_time + frac * physics_delta
+
 # ------------------------------------------------------------- konstruksi
 func add_pivot(pname: String, parent_name: String, pos: Vector3) -> Node3D:
 	var p := Node3D.new()

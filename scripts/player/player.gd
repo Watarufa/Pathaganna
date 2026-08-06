@@ -220,7 +220,11 @@ func _physics_process(delta: float) -> void:
 			_st_dead(delta)
 
 	move_and_slide()
-	_update_visuals(delta)
+
+## Visual digambar per frame render, bukan per physics tick — lihat
+## PoseRig.visual_time(). Timing gameplay tetap sepenuhnya dari state_time.
+func _process(delta: float) -> void:
+	_update_visuals(PoseRig.visual_time(state_time, get_physics_process_delta_time()), delta)
 
 # ------------------------------------------------------------- input buffer
 func _poll_combat_input() -> void:
@@ -541,7 +545,9 @@ func _emit_initial_ui() -> void:
 	CombatEvents.meter_changed.emit(meter, Balance.SKILL.meter_max)
 
 # ------------------------------------------------------------- visual (murni ikut state)
-func _update_visuals(delta: float) -> void:
+## `vis_time` = state_time terinterpolasi ke frame render; `delta` = delta render
+## (dipakai animasi yang berbasis akumulasi, bukan berbasis jam state).
+func _update_visuals(vis_time: float, delta: float) -> void:
 	trail.active = state in ATTACK_STATES or state == State.SKILL
 	match state:
 		State.IDLE_RUN:
@@ -549,29 +555,29 @@ func _update_visuals(delta: float) -> void:
 			var ratio := Vector2(velocity.x, velocity.z).length() / Balance.PLAYER.move_speed
 			rig.locomotion(ratio, delta)
 		State.ATTACK_1, State.ATTACK_2, State.ATTACK_3:
-			_attack_visual(_attack_index)
+			_attack_visual(_attack_index, vis_time)
 		State.DODGE:
-			_dodge_visual()
+			_dodge_visual(vis_time)
 		State.PARRY:
 			rig.pose({
 				"ArmR": Vector3(-95, 0, -25), "WeaponPivot": Vector3(95, 0, 0),
 				"ArmL": Vector3(-45, 0, 35), "Torso": Vector3(4, -15, 0),
 			}, 30.0)
 		State.SKILL:
-			_skill_visual()
+			_skill_visual(vis_time)
 		State.HITSTUN:
 			rig.pose(POSE_HITSTUN, 22.0)
 		State.DEAD:
 			rig.pose(POSE_DEAD, 5.0)
 
-func _attack_visual(idx: int) -> void:
+func _attack_visual(idx: int, vis_time: float) -> void:
 	var a: Dictionary = Balance.COMBO[idx]
 	var v: Dictionary = ATTACK_VIS[idx]
 	var wind_end: float = a.hit_start * 0.7
-	if state_time < wind_end:
+	if vis_time < wind_end:
 		rig.pose({ "Torso": v.torso_from, "ArmR": v.arm_from, "WeaponPivot": v.wep_from }, 26.0)
 	else:
-		var k := clampf((state_time - wind_end) / (a.hit_end - wind_end), 0.0, 1.0)
+		var k := clampf((vis_time - wind_end) / (a.hit_end - wind_end), 0.0, 1.0)
 		k = k * k * (3.0 - 2.0 * k)
 		rig.snap({
 			"Torso": v.torso_from.lerp(v.torso_to, k),
@@ -580,9 +586,9 @@ func _attack_visual(idx: int) -> void:
 		})
 	rig.pose({ "ArmL": Vector3(-30, 0, 25), "Head": Vector3(-4, 0, 0) }, 14.0)
 
-func _dodge_visual() -> void:
+func _dodge_visual(vis_time: float) -> void:
 	var d: Dictionary = Balance.DODGE
-	var p := clampf(state_time / d.duration, 0.0, 1.0)
+	var p := clampf(vis_time / float(d.duration), 0.0, 1.0)
 	var spin := p * p * (3.0 - 2.0 * p) * -360.0
 	rig.snap({ "Hips": Vector3(spin, 0, 0) })
 	rig.pose({
@@ -592,10 +598,10 @@ func _dodge_visual() -> void:
 	}, 25.0)
 	rig.pivot("Hips").position = Vector3(0, 0.92 - 0.34 * sin(p * PI), 0)
 
-func _skill_visual() -> void:
+func _skill_visual(vis_time: float) -> void:
 	var s: Dictionary = Balance.SKILL
 	var start: float = s.hit_start * 0.6
-	var k := clampf((state_time - start) / (s.hit_end - start), 0.0, 1.0)
+	var k := clampf((vis_time - start) / (s.hit_end - start), 0.0, 1.0)
 	k = k * k * (3.0 - 2.0 * k)
 	rig.snap({ "Hips": Vector3(0, k * 360.0, 0) })
 	rig.pose({

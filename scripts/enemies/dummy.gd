@@ -17,9 +17,16 @@ var hurtbox: Hurtbox
 var hitbox: Hitbox
 
 var _screen: MeshInstance3D
+var _screen_fill: MeshInstance3D
+var _fill_mat: StandardMaterial3D
+var _fill_base_energy := 1.0
 var _cooldown := 0.0
 var _current: Dictionary = {}
 var _hitbox_on := false
+
+# Geometri layar wajah (dimensi mesh, bukan angka gameplay — tetap di sini).
+const FILL_CENTER_Y := 0.17
+const FILL_HALF := 0.1
 
 # Profil gerakan telegraph. Putih dan merah sengaja punya BENTUK berbeda —
 # tebasan atas vs sapuan samping — supaya jenis serangan terbaca dari siluet
@@ -120,7 +127,15 @@ func _build_rig() -> void:
 	rig.attach_box("Torso", Vector3(0.5, 0.8, 0.32), Vector3(0, 0.2, 0), Palette.CLOTH)
 	# kepala monitor CRT — layar wajahnya ADALAH telegraph (diegetik)
 	rig.attach_box("Head", Vector3(0.42, 0.34, 0.38), Vector3(0, 0.17, 0), Palette.METAL)
-	_screen = rig.attach_box("Head", Vector3(0.3, 0.22, 0.02), Vector3(0, 0.17, -0.2), Palette.CRT_SCREEN)
+	_screen = rig.attach_box("Head", Vector3(0.3, 0.22, 0.02), Vector3(0, FILL_CENTER_Y, -0.2), Palette.CRT_SCREEN)
+	# lapisan hitung mundur: tumbuh dari bawah layar selama windup.
+	# Material di-duplicate per musuh supaya glow-nya bisa didenyutkan sendiri
+	# tanpa ikut mengubah musuh lain yang berbagi material palet.
+	_screen_fill = rig.attach_box("Head", Vector3(0.28, 2.0 * FILL_HALF, 0.01),
+		Vector3(0, FILL_CENTER_Y, -0.212), null)
+	_fill_mat = Palette.TELEGRAPH_WHITE.duplicate()
+	_screen_fill.material_override = _fill_mat
+	_screen_fill.visible = false
 	# lengan
 	rig.attach_capsule("ArmL", 0.07, 0.55, Vector3(0, -0.28, 0), Palette.CLOTH)
 	rig.attach_capsule("ArmR", 0.07, 0.55, Vector3(0, -0.28, 0), Palette.CLOTH)
@@ -165,7 +180,11 @@ func _physics_process(delta: float) -> void:
 	velocity.z = flat.z
 	velocity.y = -0.5 if is_on_floor() else velocity.y - Balance.PLAYER.gravity * delta
 	move_and_slide()
-	_update_visuals()
+
+## Visual digambar per frame render, bukan per physics tick — lihat
+## PoseRig.visual_time(). Timing serangan tetap sepenuhnya dari state_time.
+func _process(_delta: float) -> void:
+	_update_visuals(PoseRig.visual_time(state_time, get_physics_process_delta_time()))
 
 func _st_idle() -> void:
 	if _cooldown > 0.0:
@@ -175,6 +194,7 @@ func _st_idle() -> void:
 		return
 	var red: bool = randf() < Balance.DUMMY.red_chance
 	_current = Balance.DUMMY.red if red else Balance.DUMMY.white
+	_arm_fill_color()
 	_change_state(State.WINDUP)
 
 func _st_windup() -> void:
@@ -196,6 +216,28 @@ func _st_swing() -> void:
 func _profile() -> Dictionary:
 	return PROFILE_WHITE if _current.get("parryable", true) else PROFILE_RED
 
+## Warna hitung mundur diambil dari material palet, jadi sumber kebenaran warna
+## tetap di resources/materials/ meski material fill-nya per-instance.
+func _arm_fill_color() -> void:
+	var src: StandardMaterial3D = Palette.TELEGRAPH_WHITE if _current.get("parryable", true) \
+		else Palette.TELEGRAPH_RED
+	_fill_mat.albedo_color = src.albedo_color
+	_fill_mat.emission = src.emission
+	_fill_base_energy = src.emission_energy_multiplier
+
+## Isi layar wajah dari bawah (0..1). 1.0 = pukulan dimulai.
+func _set_fill(amount: float) -> void:
+	if amount <= 0.001:
+		_screen_fill.visible = false
+		_screen.material_override = Palette.CRT_SCREEN
+		return
+	# layar dasar diredupkan supaya warna hitung mundur benar-benar menonjol
+	_screen.material_override = Palette.CRT_OFF
+	_screen_fill.visible = true
+	_screen_fill.scale.y = amount
+	_screen_fill.position.y = (FILL_CENTER_Y - FILL_HALF) + FILL_HALF * amount
+	_fill_mat.emission_energy_multiplier = Telegraph.pulse_energy(amount, _fill_base_energy)
+
 func _stop_hitbox() -> void:
 	if _hitbox_on:
 		_hitbox_on = false
@@ -215,35 +257,38 @@ func _player() -> Node3D:
 	return get_tree().get_first_node_in_group("player")
 
 # ------------------------------------------------------------- telegraph diegetik
-func _update_visuals() -> void:
+func _update_visuals(vis_time: float) -> void:
 	match state:
 		State.WINDUP:
-			# Gerakan windup dihitung langsung dari state_time: angkat progresif →
+			# Gerakan windup dihitung langsung dari jam state: angkat mengalir →
 			# anticipation → pukul, jadi pemain membaca KAPAN, bukan cuma APA.
-			_screen.material_override = Telegraph.screen_material(
-				state_time, _current.windup, _current.parryable, Palette.CRT_SCREEN)
-			rig.snap(Telegraph.windup_pose(_profile(), state_time, _current.windup))
+			rig.snap(Telegraph.windup_pose(_profile(), vis_time, _current.windup))
+			# Layar wajah = hitung mundur diegetik: warna mengisi dari bawah,
+			# penuh 100% tepat saat pukulan dimulai.
+			_set_fill(Telegraph.fill_amount(vis_time, _current.windup))
 		State.SWING:
-			_screen.material_override = Palette.CRT_SCREEN
+			_set_fill(0.0)
 			# lanjut dari pose coil supaya ayunan menyambung mulus dari windup
-			var k := clampf(state_time / maxf(_current.hit_end, 0.01), 0.0, 1.0)
+			var k := clampf(vis_time / maxf(_current.hit_end, 0.01), 0.0, 1.0)
 			k = k * k * (3.0 - 2.0 * k)
 			rig.snap(Telegraph.blend(_profile().coil, _profile().follow, k))
 		State.STAGGER:
-			_screen.material_override = Palette.CRT_SCREEN
+			_set_fill(0.0)
 			rig.pose({
 				"Torso": Vector3(-26, 0, 8), "Head": Vector3(-18, 0, 0),
 				"ArmR": Vector3(-15, 0, -35), "ArmL": Vector3(-15, 0, 35),
 				"WeaponPivot": Vector3(-30, 0, 0),
 			}, 12.0)
 		State.REBOOT:
+			# layar padam — fill disembunyikan tanpa menyalakan kembali layar dasar
+			_screen_fill.visible = false
 			rig.pose({
 				"Torso": Vector3(-14, 0, 0), "Head": Vector3(24, 0, 0),
 				"ArmR": Vector3(-4, 0, -10), "ArmL": Vector3(-4, 0, 10),
 				"WeaponPivot": Vector3(-84, 0, 0),
 			}, 6.0)
 		_:
-			_screen.material_override = Palette.CRT_SCREEN
+			_set_fill(0.0)
 			rig.pose(POSE_IDLE, 8.0)
 
 # ------------------------------------------------------------- reaksi
@@ -270,7 +315,8 @@ func on_parried(perfect: bool) -> void:
 
 func _on_pseudo_death() -> void:
 	_stop_hitbox()
-	_screen.material_override = Palette.CABLE
+	_screen_fill.visible = false
+	_screen.material_override = Palette.CRT_OFF
 	HitSpark.spawn(get_parent(), global_position + Vector3.UP * 1.2, Color(0.85, 1.0, 0.9), 30, 8.0)
 	_change_state(State.REBOOT)
 
