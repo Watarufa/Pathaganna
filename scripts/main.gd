@@ -18,6 +18,7 @@ func _ready() -> void:
 	_overlay = load(OVERLAY_SCENE).instantiate()
 	add_child(_overlay)
 	CombatEvents.player_died.connect(_on_player_died)
+	CombatEvents.quit_to_menu.connect(show_menu)
 	# `-- --smoke` / `-- --combat-smoke` dari CLI: langsung boot gameplay tanpa menu
 	var args := OS.get_cmdline_user_args()
 	if "--smoke" in args or "--combat-smoke" in args:
@@ -27,6 +28,7 @@ func _ready() -> void:
 
 func show_menu() -> void:
 	print("[main] menu")
+	get_tree().paused = false
 	_clear_current()
 	GameManager.state = GameManager.GameState.MENU
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
@@ -60,7 +62,8 @@ func _spawn_player(area: Node) -> void:
 	_overlay.player = player
 
 # ------------------------------------------------------------- death loop
-## M3: respawn di titik awal area. M4 menggantinya dengan Ganna terakhir.
+## Respawn di Ganna terakhir yang diaktifkan (area yang menentukan titiknya),
+## HP penuh, meter skill dipertahankan, semua musuh biasa kembali.
 func _on_player_died() -> void:
 	if GameManager.state != GameManager.GameState.PLAYING:
 		return
@@ -87,14 +90,6 @@ func _respawn() -> void:
 	GameManager.state = GameManager.GameState.PLAYING
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	CombatEvents.player_respawned.emit()
-
-func _unhandled_input(event: InputEvent) -> void:
-	# Sementara (sampai pause menu M4): Esc melepas/menangkap mouse saat gameplay
-	if event.is_action_pressed("pause") and GameManager.state == GameManager.GameState.PLAYING:
-		if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
-			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-		else:
-			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 func _on_quit() -> void:
 	get_tree().quit()

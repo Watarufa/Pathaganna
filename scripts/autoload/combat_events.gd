@@ -24,3 +24,4 @@ signal boss_phase_started(phase: int, display_name: String)
 signal boss_defeated
 signal checkpoint_activated(id: String)
 signal interact_prompt(text: String)  # "" = sembunyikan prompt
+signal quit_to_menu
