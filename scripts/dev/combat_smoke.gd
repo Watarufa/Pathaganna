@@ -87,6 +87,10 @@ func _physics_process(delta: float) -> void:
 	var dummy := _nearest_dummy()
 	if dummy != null and dummy.has_method("state_name"):
 		_enemy_seen[dummy.state_name()] = true
+		# fill layar benar-benar dirender — cek state saja tidak menangkap
+		# kasus hitung mundur yang tidak pernah muncul
+		if dummy._screen_fill != null and dummy._screen_fill.visible:
+			_mark("enemy_fill_shown")
 
 	# kirim serangan terjadwal begitu jam FSM player mencapai titik yang diminta
 	if not _pending.is_empty():
@@ -177,7 +181,8 @@ func _finish() -> void:
 		if not _seen.has(s):
 			missing.append("state:" + s)
 	for key in ["player_hit_landed", "parry_perfect", "parry_normal", "enemy_staggered",
-			"perfect_dodge", "player_damaged", "skill_used", "player_died", "style_scored"]:
+			"perfect_dodge", "player_damaged", "skill_used", "player_died", "style_scored",
+			"enemy_fill_shown"]:
 		if not _events.has(key):
 			missing.append(key)
 	for s in ["WINDUP", "SWING"]:

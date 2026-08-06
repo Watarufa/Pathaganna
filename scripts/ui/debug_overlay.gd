@@ -77,7 +77,9 @@ func _enemy_line() -> String:
 	if s == "WINDUP" and not nearest._current.is_empty():
 		var w: float = nearest._current.windup
 		var kind := "PUTIH parry" if nearest._current.parryable else "MERAH dodge"
-		return "musuh: %s [%s] pukul dalam %.2f s" % [s, kind, maxf(w - nearest.state_time, 0.0)]
+		var fill := Telegraph.fill_amount(nearest.state_time, w)
+		return "musuh: %s [%s] fill %d%% - pukul dalam %.2f s" \
+			% [s, kind, roundi(fill * 100.0), maxf(w - nearest.state_time, 0.0)]
 	return "musuh: %s (%.1f m)" % [s, best]
 
 # ------------------------------------------------------------- timeline window
