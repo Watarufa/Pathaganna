@@ -21,6 +21,38 @@ var _cooldown := 0.0
 var _current: Dictionary = {}
 var _hitbox_on := false
 
+# Profil gerakan telegraph. Putih dan merah sengaja punya BENTUK berbeda —
+# tebasan atas vs sapuan samping — supaya jenis serangan terbaca dari siluet
+# meski warnanya luput dari perhatian. `follow` = pose akhir ayunan.
+const POSE_IDLE := {
+	Torso = Vector3.ZERO, ArmR = Vector3(-8, 0, -6), ArmL = Vector3(-8, 0, 6),
+	Head = Vector3.ZERO, WeaponPivot = Vector3(-58, 0, 0),
+}
+const PROFILE_WHITE := {
+	neutral = POSE_IDLE,
+	ready  = { Torso = Vector3(-14, 0, 0), ArmR = Vector3(-138, 0, -16),
+	           ArmL = Vector3(-16, 0, 16), Head = Vector3(-10, 0, 0),
+	           WeaponPivot = Vector3(-52, 0, 0) },
+	coil   = { Torso = Vector3(-26, 0, 0), ArmR = Vector3(-172, 0, -26),
+	           ArmL = Vector3(-24, 0, 22), Head = Vector3(-20, 0, 0),
+	           WeaponPivot = Vector3(-74, 0, 0) },
+	follow = { Torso = Vector3(26, 0, 0), ArmR = Vector3(-22, 0, 6),
+	           ArmL = Vector3(-10, 0, 10), Head = Vector3(16, 0, 0),
+	           WeaponPivot = Vector3(-14, 0, 0) },
+}
+const PROFILE_RED := {
+	neutral = POSE_IDLE,
+	ready  = { Torso = Vector3(0, 46, 0), ArmR = Vector3(-84, 0, -66),
+	           ArmL = Vector3(-28, 0, 28), Head = Vector3(0, 32, 0),
+	           WeaponPivot = Vector3(-16, -34, 0) },
+	coil   = { Torso = Vector3(0, 72, 0), ArmR = Vector3(-90, 0, -98),
+	           ArmL = Vector3(-36, 0, 34), Head = Vector3(0, 52, 0),
+	           WeaponPivot = Vector3(-16, -52, 0) },
+	follow = { Torso = Vector3(0, -58, 0), ArmR = Vector3(-88, 0, 70),
+	           ArmL = Vector3(-20, 0, -20), Head = Vector3(0, -42, 0),
+	           WeaponPivot = Vector3(-16, 46, 0) },
+}
+
 func _ready() -> void:
 	add_to_group("lockon_targets")
 	add_to_group("enemies")
@@ -92,6 +124,10 @@ func _build_rig() -> void:
 	# lengan
 	rig.attach_capsule("ArmL", 0.07, 0.55, Vector3(0, -0.28, 0), Palette.CLOTH)
 	rig.attach_capsule("ArmR", 0.07, 0.55, Vector3(0, -0.28, 0), Palette.CLOTH)
+	# batang antena berkarat — memperbesar siluet ayunan supaya telegraph
+	# terbaca dari jarak tempur, bukan cuma dari lengan setipis capsule
+	rig.add_pivot("WeaponPivot", "ArmR", Vector3(0, -0.5, 0))
+	rig.attach_box("WeaponPivot", Vector3(0.055, 0.055, 0.95), Vector3(0, 0, -0.45), Palette.METAL)
 
 func get_lockon_point() -> Vector3:
 	return global_position + Vector3.UP * 1.35
@@ -157,6 +193,9 @@ func _st_swing() -> void:
 		_cooldown = Balance.DUMMY.interval
 		_change_state(State.RECOVER)
 
+func _profile() -> Dictionary:
+	return PROFILE_WHITE if _current.get("parryable", true) else PROFILE_RED
+
 func _stop_hitbox() -> void:
 	if _hitbox_on:
 		_hitbox_on = false
@@ -179,36 +218,33 @@ func _player() -> Node3D:
 func _update_visuals() -> void:
 	match state:
 		State.WINDUP:
-			# layar wajah berkedip: putih = bisa diparry, merah = wajib dodge
-			var blink := fmod(state_time * 12.0, 2.0) < 1.0
-			var telegraph: Material = Palette.TELEGRAPH_WHITE if _current.parryable else Palette.TELEGRAPH_RED
-			_screen.material_override = telegraph if blink else Palette.CRT_SCREEN
-			rig.pose({
-				"Torso": Vector3(-12, 0, 0), "ArmR": Vector3(-150, 0, -20),
-				"ArmL": Vector3(-20, 0, 20), "Head": Vector3(-8, 0, 0),
-			}, 9.0)
+			# Gerakan windup dihitung langsung dari state_time: angkat progresif →
+			# anticipation → pukul, jadi pemain membaca KAPAN, bukan cuma APA.
+			_screen.material_override = Telegraph.screen_material(
+				state_time, _current.windup, _current.parryable, Palette.CRT_SCREEN)
+			rig.snap(Telegraph.windup_pose(_profile(), state_time, _current.windup))
 		State.SWING:
 			_screen.material_override = Palette.CRT_SCREEN
+			# lanjut dari pose coil supaya ayunan menyambung mulus dari windup
 			var k := clampf(state_time / maxf(_current.hit_end, 0.01), 0.0, 1.0)
 			k = k * k * (3.0 - 2.0 * k)
-			rig.snap({
-				"Torso": Vector3(-12, 0, 0).lerp(Vector3(22, 0, 0), k),
-				"ArmR": Vector3(-150, 0, -20).lerp(Vector3(-30, 0, 10), k),
-			})
+			rig.snap(Telegraph.blend(_profile().coil, _profile().follow, k))
 		State.STAGGER:
 			_screen.material_override = Palette.CRT_SCREEN
 			rig.pose({
 				"Torso": Vector3(-26, 0, 8), "Head": Vector3(-18, 0, 0),
 				"ArmR": Vector3(-15, 0, -35), "ArmL": Vector3(-15, 0, 35),
+				"WeaponPivot": Vector3(-30, 0, 0),
 			}, 12.0)
 		State.REBOOT:
-			rig.pose({ "Torso": Vector3(-14, 0, 0), "Head": Vector3(24, 0, 0) }, 6.0)
+			rig.pose({
+				"Torso": Vector3(-14, 0, 0), "Head": Vector3(24, 0, 0),
+				"ArmR": Vector3(-4, 0, -10), "ArmL": Vector3(-4, 0, 10),
+				"WeaponPivot": Vector3(-84, 0, 0),
+			}, 6.0)
 		_:
 			_screen.material_override = Palette.CRT_SCREEN
-			rig.pose({
-				"Torso": Vector3.ZERO, "ArmR": Vector3(-8, 0, -6),
-				"ArmL": Vector3(-8, 0, 6), "Head": Vector3.ZERO,
-			}, 8.0)
+			rig.pose(POSE_IDLE, 8.0)
 
 # ------------------------------------------------------------- reaksi
 func _on_hit(attack: AttackData, hit_from: Area3D) -> void:
