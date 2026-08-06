@@ -44,7 +44,11 @@ Protokol tiap milestone: (a) smoke test lolos, (b) TODO.md + CLAUDE.md diperbaru
 - [x] Dummy menyerang berkala pola putih/merah; stagger saat perfect parry
 - [x] Pause dasar (Esc lepas mouse, lanjut/keluar)
 - [x] Harness `--combat-smoke`: verifikasi semua state + efek combat, exit 1 kalau gagal
-- [ ] **BERHENTI: instruksi main + checklist rasa ke user; iterasi balance.gd sampai user puas**
+- [x] Iterasi 1 feedback user: kombo/cancel/perfect dodge/hitstop/kamera → oke
+- [x] Iterasi 1 feedback user: telegraph butuh **gerakan**, bukan cuma kedip warna
+      → sistem `telegraph.gd` (angkat progresif → coil → pukul, kedip mengencang lalu solid,
+        bentuk gerak beda putih/merah), dummy diberi senjata, overlay F3 tampilkan hitung mundur
+- [ ] **Menunggu user cek ulang keterbacaan telegraph sebelum lanjut M3**
 
 ## M3 — Musuh
 - [ ] enemy_base.gd (health, telegraph, stagger, deteksi, mati, event style)

@@ -146,9 +146,25 @@ Hitstun 0.3 s + knockback kecil. Tidak berlaku saat `SKILL` (super armor; damage
 
 ## 7. Musuh
 
+### Bentuk telegraph (berlaku untuk SEMUA musuh)
+
+Warna memberi tahu **apa** yang harus dilakukan; **gerakan** memberi tahu **kapan**. Keduanya wajib — flash warna saja tidak memberi pemain informasi timing.
+
+Setiap windup dihitung sebagai fungsi langsung dari `state_time`, jadi progres visual = progres waktu:
+
+1. **Angkat progresif** (0 → 70% windup): pose naik cepat lalu melambat — perubahan besar di awal, mata sempat menyesuaikan.
+2. **Anticipation / coil** (70% → 100%): tarikan balik singkat — bahasa animasi klasik untuk "SEKARANG".
+3. **Pukul.**
+
+Layar CRT ikut menyala: kedip **mengencang** dari 3.5 Hz ke 15 Hz sepanjang windup (frekuensi naik linear, fase = integralnya), lalu **menyala solid** saat coil — sinyal timing kedua yang tetap terbaca dari sudut kamera yang menyembunyikan lengan.
+
+Serangan putih dan merah punya **bentuk gerakan berbeda**, bukan sekadar warna berbeda: putih = tebasan atas (lengan terangkat tinggi), merah = sapuan samping (badan memutar). Jenis serangan terbaca dari siluet meski warnanya luput.
+
+Fraksi dan laju kedip ada di `Balance.TELEGRAPH`; kurvanya di `scripts/systems/telegraph.gd`; pose per musuh adalah data visual di file musuh masing-masing.
+
 ### Kultis CRT — melee, mayoritas parryable
 
-Jubah kultus gelap + kepala monitor CRT; **layar wajah = telegraph diegetik** (flash putih/merah).
+Jubah kultus gelap + kepala monitor CRT; **layar wajah = telegraph diegetik** (flash putih/merah), mengikuti bentuk telegraph di atas.
 
 | Parameter | Nilai |
 |---|---|
@@ -267,4 +283,6 @@ Poin yang butuh penilaian manusia diverifikasi oleh user di M6, bukan dicentang 
 - **2026-07-09 — Smoke test tambahan.** Selain 2 perintah wajib, `--quit-after` juga dijalankan dengan user arg `-- --smoke` yang membuat main.gd auto-masuk gameplay — supaya script gameplay ikut tereksekusi headless.
 - **2026-07-09 — Harness `--combat-smoke`.** `--smoke` hanya membuktikan game boot; tanpa input, tidak satu pun jalur combat tereksekusi. Ditambahkan harness bertulis yang menjalankan kombo/dodge/parry/skill/mati lewat jalur input & Hurtbox asli, lalu memverifikasi lewat signal bus bahwa tiap state **dan efeknya** benar-benar terjadi (exit 1 kalau tidak). Dijadwalkan terhadap jam FSM player, bukan nomor frame — di headless, hitstop diukur real-time sementara loop berlari secepat CPU sehingga jadwal berbasis frame meleset jauh.
 - **2026-07-09 — Window lanjut kombo.** Spec hanya menyebut cancel ke dodge/parry. Ditambahkan: kombo tetap "hidup" selama `COMBO_RESET_TIME` (0.5 s) setelah serangan berakhir, jadi dodge-cancel di tengah kombo bisa dilanjutkan ke hit berikutnya alih-alih jatuh ke A1. Tanpa ini, dodge-cancel — identitas DMC-nya — justru menghukum pemain.
+- **2026-07-09 — Telegraph butuh gerakan, bukan cuma warna (feedback feel gate).** User menilai kedip putih/merah saja tidak cukup untuk membaca *kapan* pukulan datang. Ditambahkan sistem telegraph reusable (`scripts/systems/telegraph.gd` + `Balance.TELEGRAPH`): windup jadi fungsi langsung dari `state_time` dengan angkat progresif → anticipation → pukul, kedip layar mengencang lalu solid, dan **bentuk gerakan berbeda** untuk putih (tebasan atas) vs merah (sapuan samping) supaya terbaca dari siluet. Dibuat sebagai sistem bersama sejak awal karena Kultis, Penyiar, dan kedua fase boss semuanya membutuhkannya — menambalnya di dummy saja akan jadi hutang.
+- **2026-07-09 — Dummy diberi senjata.** Ayunan lengan capsule tipis tidak terbaca dari jarak tempur; batang antena memperbesar siluet gerakan. Musuh melee sungguhan (Kultis, boss) mewarisi alasan yang sama.
 - **2026-07-09 — Sapuan overlap hitbox.** `area_entered` saja melewatkan hurtbox yang sudah tumpang tindih ketika window hitbox dibuka (musuh menempel di badan player). Hitbox menyapu `get_overlapping_areas()` tiap frame selama window; `_hit_targets` menjaga tetap satu hit per target per aktivasi.
