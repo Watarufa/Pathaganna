@@ -48,6 +48,10 @@ Protokol tiap milestone: (a) smoke test lolos, (b) TODO.md + CLAUDE.md diperbaru
 - [x] Iterasi 1 feedback user: telegraph butuh **gerakan**, bukan cuma kedip warna
       → sistem `telegraph.gd` (angkat progresif → coil → pukul, kedip mengencang lalu solid,
         bentuk gerak beda putih/merah), dummy diberi senjata, overlay F3 tampilkan hitung mundur
+- [x] Iterasi 2 feedback user: gerakan "seperti 1 fps" + terlalu cepat + ganti kedip dengan fill
+      → visual pindah ke `_process` + `PoseRig.visual_time()` (akar stutter physics-vs-render),
+        kurva windup jadi smoothstep, kedip diganti fill layar linear + denyut glow,
+        windup dummy 0.9 s / 1.0 s
 - [ ] **Menunggu user cek ulang keterbacaan telegraph sebelum lanjut M3**
 
 ## M3 — Musuh
