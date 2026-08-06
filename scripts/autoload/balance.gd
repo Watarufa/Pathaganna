@@ -128,7 +128,7 @@ const CAMERA := {
 
 const LOCKON := {
 	acquire_range = 15.0,
-	break_range = 15.0,
+	break_range = 18.0,          # > acquire: histeresis, supaya target di batas tidak berkedip kunci-lepas
 	# Ganti target = geser mouse saat terkunci (Tab murni kunci/lepas).
 	switch_threshold = 110.0,    # px gerakan mouse terakumulasi untuk pindah target
 	switch_decay = 260.0,        # px/detik akumulator meluruh — gerakan kecil tidak menumpuk
@@ -172,10 +172,13 @@ const KULTIS := {
 	detect_radius = 12.0,
 	attack_range = 2.0,
 	recovery = 0.8,              # jendela hukuman setelah menyerang
+	attack_cooldown = 1.2,
+	stagger_time = 1.4,
 	combo2_chance = 0.35,        # peluang tebasan jadi kombo 2-hit (dua-duanya putih)
 	combo2_gap = 0.4,            # windup hit kedua
 	slash = { windup = 0.6, swing = 0.25, hit_start = 0.04, hit_end = 0.16, damage = 12.0,
-	          parryable = true, knockback = 3.0, hitstop = 0.05, range = 2.4 },
+	          parryable = true, knockback = 3.0, hitstop = 0.05, range = 2.4,
+	          kind = "kultis_slash" },
 }
 
 const PENYIAR := {
@@ -185,9 +188,14 @@ const PENYIAR := {
 	keep_min = 8.0,              # menjauh jika player lebih dekat dari ini
 	keep_max = 12.0,
 	detect_radius = 14.0,
-	windup = 0.8,                # telegraph merah
-	cooldown = 2.4,              # jeda antar tembakan
-	proj = { speed = 10.0, damage = 10.0, parryable = false, radius = 0.35, life = 4.0 },
+	attack_range = 13.0,         # boleh menembak dari sini ke dalam
+	recovery = 0.6,
+	attack_cooldown = 2.4,       # jeda antar tembakan
+	stagger_time = 1.4,
+	# tanpa hit_start/hit_end: serangannya melepas proyektil, bukan hitbox melee
+	shot = { windup = 0.8, swing = 0.35, parryable = false, kind = "penyiar_shot" },
+	proj = { speed = 10.0, damage = 10.0, parryable = false, radius = 0.35, life = 4.0,
+	         knockback = 3.0, hitstop = 0.05, kind = "penyiar_proj" },
 }
 
 # ------------------------------------------------------------------ boss
