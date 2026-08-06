@@ -221,6 +221,14 @@ func _physics_process(delta: float) -> void:
 
 	move_and_slide()
 
+## Saat terkunci, mouse tidak lagi memutar kamera — ia dipakai untuk berpindah
+## target. Diteruskan dari sini karena player-lah yang memegang lockon + kamera.
+func _unhandled_input(event: InputEvent) -> void:
+	if state == State.DEAD or lockon.target == null:
+		return
+	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+		lockon.accumulate_switch(event.relative.x, Basis(Vector3.UP, camera_rig.yaw))
+
 ## Visual digambar per frame render, bukan per physics tick — lihat
 ## PoseRig.visual_time(). Timing gameplay tetap sepenuhnya dari state_time.
 func _process(delta: float) -> void:

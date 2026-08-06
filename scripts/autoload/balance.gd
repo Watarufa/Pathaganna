@@ -129,6 +129,10 @@ const CAMERA := {
 const LOCKON := {
 	acquire_range = 15.0,
 	break_range = 15.0,
+	# Ganti target = geser mouse saat terkunci (Tab murni kunci/lepas).
+	switch_threshold = 110.0,    # px gerakan mouse terakumulasi untuk pindah target
+	switch_decay = 260.0,        # px/detik akumulator meluruh — gerakan kecil tidak menumpuk
+	switch_cooldown = 0.28,      # s jeda supaya satu sapuan tidak melompati beberapa target
 }
 
 # ------------------------------------------------------------------ musuh
