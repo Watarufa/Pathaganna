@@ -138,6 +138,16 @@ const ENEMY_COMMON := {
 	die_free_delay = 1.6,        # s sebelum jasad dibersihkan
 }
 
+# Bentuk telegraph — berlaku untuk SEMUA musuh (fraksi windup, bukan detik,
+# supaya serangan cepat dan lambat sama-sama terbaca).
+# Warna memberi tahu APA (putih=parry / merah=dodge); gerakan memberi tahu KAPAN.
+const TELEGRAPH := {
+	coil_at = 0.7,               # fraksi windup saat anticipation (tarikan balik) mulai
+	blink_hz_start = 3.5,        # kedip layar di awal windup
+	blink_hz_end = 15.0,         # ...mengencang sampai sini tepat sebelum pukulan
+	solid_at = 0.45,             # coil_amount di atas ini → layar menyala solid ("terkunci")
+}
+
 # Dummy latihan M1/M2 (tidak pernah mati; HP reset otomatis)
 const DUMMY := {
 	hp = 80.0,
