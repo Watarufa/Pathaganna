@@ -54,9 +54,31 @@ func _update_text() -> void:
 		var lt: Node3D = player.lockon.target
 		lines.append("lockon: %s" % (String(lt.name) if lt != null and is_instance_valid(lt) else "-"))
 		lines.append("buffer: %s" % (player.buffered_action if player.buffered_action != "" else "-"))
+		lines.append(_enemy_line())
 	else:
 		lines.append("(player belum ada)")
 	_text.text = "\n".join(lines)
+
+## Telegraph musuh terdekat: sisa waktu sampai pukulan + jenisnya.
+## Ini yang dipakai menilai apakah windup benar-benar terbaca.
+func _enemy_line() -> String:
+	var nearest: Node = null
+	var best := INF
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if not is_instance_valid(e) or not e.has_method("state_name"):
+			continue
+		var d: float = player.global_position.distance_to(e.global_position)
+		if d < best:
+			best = d
+			nearest = e
+	if nearest == null:
+		return "musuh: -"
+	var s: String = nearest.state_name()
+	if s == "WINDUP" and not nearest._current.is_empty():
+		var w: float = nearest._current.windup
+		var kind := "PUTIH parry" if nearest._current.parryable else "MERAH dodge"
+		return "musuh: %s [%s] pukul dalam %.2f s" % [s, kind, maxf(w - nearest.state_time, 0.0)]
+	return "musuh: %s (%.1f m)" % [s, best]
 
 # ------------------------------------------------------------- timeline window
 func _draw_timeline() -> void:

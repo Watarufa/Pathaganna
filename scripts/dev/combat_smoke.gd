@@ -25,6 +25,7 @@ var _timeout := 0.0
 var _done := false
 
 var _seen := {}
+var _enemy_seen := {}
 var _events := {}
 var _meter_peak := 0.0
 
@@ -83,6 +84,9 @@ func _physics_process(delta: float) -> void:
 	if _done or player == null or not is_instance_valid(player):
 		return
 	_seen[player.state_name()] = true
+	var dummy := _nearest_dummy()
+	if dummy != null and dummy.has_method("state_name"):
+		_enemy_seen[dummy.state_name()] = true
 
 	# kirim serangan terjadwal begitu jam FSM player mencapai titik yang diminta
 	if not _pending.is_empty():
@@ -122,6 +126,9 @@ func _run(step: Dictionary) -> void:
 				player.global_position = dummy.global_position + Vector3(0, 0.15, 2.0)
 				player.rotation = Vector3.ZERO
 				player.rotation.y = PI
+				# lepas cooldown awal supaya dummy pasti menyerang dalam skenario —
+				# tanpa ini jalur telegraph (windup → swing) tidak pernah tereksekusi
+				dummy._cooldown = 0.0
 		"attack", "dodge", "parry", "skill":
 			_tap(step.act)
 		"fill_meter":
@@ -173,6 +180,9 @@ func _finish() -> void:
 			"perfect_dodge", "player_damaged", "skill_used", "player_died", "style_scored"]:
 		if not _events.has(key):
 			missing.append(key)
+	for s in ["WINDUP", "SWING"]:
+		if not _enemy_seen.has(s):
+			missing.append("enemy:" + s)
 	if _meter_peak <= 0.0:
 		missing.append("meter_gain")
 
