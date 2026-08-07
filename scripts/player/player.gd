@@ -4,9 +4,13 @@
 class_name Player
 extends CharacterBody3D
 
-enum State { IDLE_RUN, ATTACK_1, ATTACK_2, ATTACK_3, DODGE, PARRY, SKILL, HITSTUN, DEAD }
-const STATE_NAMES := ["IDLE_RUN", "ATTACK_1", "ATTACK_2", "ATTACK_3", "DODGE", "PARRY", "SKILL", "HITSTUN", "DEAD"]
+enum State { IDLE_RUN, ATTACK_1, ATTACK_2, ATTACK_3, HEAVY, JUMP, AIR_ATTACK, DODGE, PARRY, SKILL, HITSTUN, DEAD }
+const STATE_NAMES := ["IDLE_RUN", "ATTACK_1", "ATTACK_2", "ATTACK_3", "HEAVY", "JUMP", "AIR_ATTACK",
+	"DODGE", "PARRY", "SKILL", "HITSTUN", "DEAD"]
 const ATTACK_STATES := [State.ATTACK_1, State.ATTACK_2, State.ATTACK_3]
+## Semua state yang mengayunkan bilah — dipakai untuk weapon trail.
+const SWING_STATES := [State.ATTACK_1, State.ATTACK_2, State.ATTACK_3,
+	State.HEAVY, State.AIR_ATTACK, State.SKILL]
 
 var state: State = State.IDLE_RUN
 var state_time := 0.0
@@ -29,6 +33,8 @@ var _pd_triggered := false        # perfect dodge sekali per roll
 var _pd_buff_left := 0.0          # window bonus damage +50%
 var _parry_contact_time := -1.0   # state_time saat parry sukses (-1 = belum)
 var _spawn_invuln_left := 0.0
+var _coyote_left := 0.0           # sisa waktu masih boleh lompat setelah lepas dari tepi
+var _land_lag_left := 0.0         # recovery singkat setelah mendarat
 
 var rig: PoseRig
 var camera_rig: CameraRig
@@ -208,6 +214,12 @@ func _physics_process(delta: float) -> void:
 			_st_idle_run(delta)
 		State.ATTACK_1, State.ATTACK_2, State.ATTACK_3:
 			_st_attack(delta)
+		State.HEAVY:
+			_st_heavy(delta)
+		State.JUMP:
+			_st_jump(delta)
+		State.AIR_ATTACK:
+			_st_air_attack(delta)
 		State.DODGE:
 			_st_dodge(delta)
 		State.PARRY:
@@ -238,7 +250,7 @@ func _process(delta: float) -> void:
 func _poll_combat_input() -> void:
 	if state == State.DEAD:
 		return
-	for a in ["attack", "dodge", "parry", "skill"]:
+	for a in ["attack", "heavy", "jump", "dodge", "parry", "skill"]:
 		if Input.is_action_just_pressed(a):
 			buffered_action = a
 			_buffer_left = Balance.INPUT.buffer_time
@@ -256,6 +268,13 @@ func _tick_timers(delta: float) -> void:
 		_combo_window_left -= delta
 		if _combo_window_left <= 0.0:
 			_combo_next = 0
+	if _land_lag_left > 0.0:
+		_land_lag_left -= delta
+	# coyote time: penuh selama menyentuh lantai, meluruh begitu lepas
+	if is_on_floor():
+		_coyote_left = Balance.JUMP.coyote_time
+	elif _coyote_left > 0.0:
+		_coyote_left -= delta
 
 func _consume_buffer() -> void:
 	buffered_action = ""
@@ -273,6 +292,11 @@ func _st_idle_run(delta: float) -> void:
 	_apply_gravity(delta)
 	_face(delta, dir)
 
+	# land lag: jeda sangat singkat setelah mendarat sebelum aksi berikutnya.
+	# Buffer tetap tersimpan, jadi input di tengah lag tidak hilang.
+	if _land_lag_left > 0.0:
+		return
+
 	# konsumsi buffer — dodge menang atas segalanya (identitas DMC)
 	if buffered_action == "dodge":
 		_consume_buffer()
@@ -284,6 +308,13 @@ func _st_idle_run(delta: float) -> void:
 	elif buffered_action == "parry":
 		_consume_buffer()
 		_enter_parry()
+	elif buffered_action == "jump":
+		if is_on_floor() or _coyote_left > 0.0:
+			_consume_buffer()
+			_enter_jump()
+	elif buffered_action == "heavy":
+		_consume_buffer()
+		_enter_heavy()
 	elif buffered_action == "attack":
 		_consume_buffer()
 		_enter_attack(_combo_next if _combo_window_left > 0.0 else 0)
@@ -315,16 +346,104 @@ func _st_attack(delta: float) -> void:
 		else:
 			_enter_parry()
 		return
-	# chain serangan lanjutan
-	if a.chain_at > 0.0 and state_time >= a.chain_at and buffered_action == "attack":
-		_consume_buffer()
-		_stop_attack_boxes()
-		_enter_attack(_attack_index + 1)
-		return
+	# chain serangan lanjutan — klik kiri lanjut kombo, R menutup dengan heavy
+	if a.chain_at > 0.0 and state_time >= a.chain_at:
+		if buffered_action == "attack":
+			_consume_buffer()
+			_stop_attack_boxes()
+			_enter_attack(_attack_index + 1)
+			return
+		if buffered_action == "heavy":
+			_consume_buffer()
+			_stop_attack_boxes()
+			_enter_heavy()
+			return
 	if state_time >= a.duration:
 		_stop_attack_boxes()
 		_open_combo_window()
 		_change_state(State.IDLE_RUN)
+
+## Serangan berat. Window-nya sama polanya dengan kombo, cuma lebih lambat dan
+## lebih menghukum kalau meleset.
+func _st_heavy(delta: float) -> void:
+	var h: Dictionary = Balance.HEAVY
+	var flat := Vector3(velocity.x, 0, velocity.z).move_toward(Vector3.ZERO, Balance.PLAYER.decel * 0.5 * delta)
+	velocity.x = flat.x
+	velocity.z = flat.z
+	_apply_gravity(delta)
+
+	var active: bool = state_time >= float(h.hit_start) and state_time <= float(h.hit_end)
+	if active and not _hitbox_on:
+		_hitbox_on = true
+		hitbox.begin(_make_attack(h))
+	elif not active and _hitbox_on:
+		_hitbox_on = false
+		hitbox.end()
+
+	if state_time >= float(h.cancel_at) and (buffered_action == "dodge" or buffered_action == "parry"):
+		var act := buffered_action
+		_consume_buffer()
+		_stop_attack_boxes()
+		if act == "dodge":
+			_enter_dodge()
+		else:
+			_enter_parry()
+		return
+	if state_time >= float(h.duration):
+		_stop_attack_boxes()
+		_change_state(State.IDLE_RUN)
+
+## Melayang. TIDAK memakai _apply_gravity(): fungsi itu menolkan kecepatan
+## vertikal saat is_on_floor, dan di frame pertama lompat kaki masih menyentuh
+## lantai — lompatnya akan gagal tanpa error apa pun. Karena itu gravitasi
+## diterapkan langsung, dan pendaratan baru dicek setelah takeoff_grace.
+func _st_jump(delta: float) -> void:
+	var j: Dictionary = Balance.JUMP
+	var in_vec := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
+	var dir := _cam_relative(in_vec)
+	var target_v := dir * Balance.PLAYER.move_speed * float(j.air_control)
+	var flat := Vector3(velocity.x, 0, velocity.z).move_toward(target_v, float(j.air_accel) * delta)
+	velocity.x = flat.x
+	velocity.z = flat.z
+	velocity.y -= Balance.PLAYER.gravity * delta
+	_face(delta, dir)
+
+	if buffered_action == "attack":
+		_consume_buffer()
+		_enter_air_attack()
+		return
+	if state_time >= float(j.takeoff_grace) and is_on_floor():
+		_land()
+
+func _st_air_attack(delta: float) -> void:
+	var a: Dictionary = Balance.AIR_ATTACK
+	velocity.y -= Balance.PLAYER.gravity * 0.4 * delta
+	var flat := Vector3(velocity.x, 0, velocity.z).move_toward(Vector3.ZERO, 8.0 * delta)
+	velocity.x = flat.x
+	velocity.z = flat.z
+
+	var active: bool = state_time >= float(a.hit_start) and state_time <= float(a.hit_end)
+	if active and not _hitbox_on:
+		_hitbox_on = true
+		hitbox.begin(_make_attack(a))
+	elif not active and _hitbox_on:
+		_hitbox_on = false
+		hitbox.end()
+
+	# mendarat memotong sisa durasi — terasa seperti benturan, bukan mengambang
+	if is_on_floor():
+		_stop_attack_boxes()
+		_land()
+		return
+	if state_time >= float(a.duration):
+		_stop_attack_boxes()
+		_change_state(State.JUMP)
+
+func _land() -> void:
+	_hitbox_offset_reset()
+	_land_lag_left = Balance.JUMP.land_lag
+	velocity.y = -0.5
+	_change_state(State.IDLE_RUN)
 
 func _open_combo_window() -> void:
 	if _attack_index + 1 < Balance.COMBO.size():
@@ -409,19 +528,50 @@ func _st_dead(delta: float) -> void:
 func _enter_attack(idx: int) -> void:
 	_attack_index = clampi(idx, 0, Balance.COMBO.size() - 1)
 	_hitbox_on = false
-	# hadap niat serang: lock-on → target; ada input → arah input
-	var in_dir := _cam_relative(Input.get_vector("move_left", "move_right", "move_forward", "move_back"))
-	if lockon.target != null and is_instance_valid(lockon.target):
-		var to := lockon.target.global_position - global_position
-		if Vector2(to.x, to.z).length_squared() > 0.04:
-			rotation.y = atan2(-to.x, -to.z)
-	elif in_dir.length_squared() > 0.001:
-		rotation.y = atan2(-in_dir.x, -in_dir.z)
+	_hitbox_offset_reset()
+	_face_attack_intent()
 	_change_state(ATTACK_STATES[_attack_index])
 	var a: Dictionary = Balance.COMBO[_attack_index]
 	var fwd := -transform.basis.z
 	velocity.x = fwd.x * a.lunge
 	velocity.z = fwd.z * a.lunge
+
+func _enter_heavy() -> void:
+	_hitbox_on = false
+	_face_attack_intent()
+	_change_state(State.HEAVY)
+	var fwd := -transform.basis.z
+	velocity.x = fwd.x * float(Balance.HEAVY.lunge)
+	velocity.z = fwd.z * float(Balance.HEAVY.lunge)
+
+func _enter_jump() -> void:
+	_change_state(State.JUMP)
+	velocity.y = Balance.JUMP.speed
+	_coyote_left = 0.0
+
+func _enter_air_attack() -> void:
+	_hitbox_on = false
+	_face_attack_intent()
+	_change_state(State.AIR_ATTACK)
+	velocity.y = -float(Balance.AIR_ATTACK.dive_speed)
+	# hitbox digeser ke bawah-depan: ayunannya menukik, bukan mendatar
+	var hb: Dictionary = Balance.COMBO_HITBOX
+	hitbox.position = Vector3(0, 0.5, -float(hb.forward) * 0.8)
+
+func _hitbox_offset_reset() -> void:
+	var hb: Dictionary = Balance.COMBO_HITBOX
+	hitbox.position = Vector3(0, 1.1, -float(hb.forward))
+
+## Hadap niat serang: lock-on → target; ada input gerak → arah input.
+func _face_attack_intent() -> void:
+	if lockon.target != null and is_instance_valid(lockon.target):
+		var to := lockon.target.global_position - global_position
+		if Vector2(to.x, to.z).length_squared() > 0.04:
+			rotation.y = atan2(-to.x, -to.z)
+		return
+	var in_dir := _cam_relative(Input.get_vector("move_left", "move_right", "move_forward", "move_back"))
+	if in_dir.length_squared() > 0.001:
+		rotation.y = atan2(-in_dir.x, -in_dir.z)
 
 func _enter_dodge() -> void:
 	var in_vec := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
@@ -556,7 +706,7 @@ func _emit_initial_ui() -> void:
 ## `vis_time` = state_time terinterpolasi ke frame render; `delta` = delta render
 ## (dipakai animasi yang berbasis akumulasi, bukan berbasis jam state).
 func _update_visuals(vis_time: float, delta: float) -> void:
-	trail.active = state in ATTACK_STATES or state == State.SKILL
+	trail.active = state in SWING_STATES
 	match state:
 		State.IDLE_RUN:
 			rig.pose(POSE_STANCE, 8.0)
@@ -564,6 +714,12 @@ func _update_visuals(vis_time: float, delta: float) -> void:
 			rig.locomotion(ratio, delta)
 		State.ATTACK_1, State.ATTACK_2, State.ATTACK_3:
 			_attack_visual(_attack_index, vis_time)
+		State.HEAVY:
+			_heavy_visual(vis_time)
+		State.JUMP:
+			_jump_visual()
+		State.AIR_ATTACK:
+			_air_attack_visual(vis_time)
 		State.DODGE:
 			_dodge_visual(vis_time)
 		State.PARRY:
@@ -593,6 +749,59 @@ func _attack_visual(idx: int, vis_time: float) -> void:
 			"WeaponPivot": v.wep_from.lerp(v.wep_to, k),
 		})
 	rig.pose({ "ArmL": Vector3(-30, 0, 25), "Head": Vector3(-4, 0, 0) }, 14.0)
+
+## Ayunan berat: tarikan balik jelas lalu hantaman panjang ke depan-bawah.
+func _heavy_visual(vis_time: float) -> void:
+	var h: Dictionary = Balance.HEAVY
+	var wind_end: float = float(h.hit_start) * 0.8
+	var wind := { "Torso": Vector3(-22, -34, 0), "ArmR": Vector3(-168, 0, -22),
+		"WeaponPivot": Vector3(-46, 62, 0), "ArmL": Vector3(-40, 0, 32) }
+	if vis_time < wind_end:
+		rig.pose(wind, 16.0)
+	else:
+		var k := clampf((vis_time - wind_end) / (float(h.hit_end) - wind_end), 0.0, 1.0)
+		k = k * k * (3.0 - 2.0 * k)
+		rig.snap({
+			"Torso": (wind.Torso as Vector3).lerp(Vector3(34, 26, 0), k),
+			"ArmR": (wind.ArmR as Vector3).lerp(Vector3(-34, 0, 14), k),
+			"WeaponPivot": (wind.WeaponPivot as Vector3).lerp(Vector3(-20, -68, 0), k),
+			"ArmL": (wind.ArmL as Vector3).lerp(Vector3(-16, 0, 18), k),
+		})
+	rig.pose({ "Head": Vector3(6, 0, 0) }, 12.0)
+
+## Pose udara: kaki tertekuk, condong mengikuti arah gerak vertikal.
+func _jump_visual() -> void:
+	var rise := clampf(velocity.y / Balance.JUMP.speed, -1.0, 1.0)
+	rig.pose({
+		"Torso": Vector3(-8.0 + rise * 10.0, 0, 0),
+		"Head": Vector3(-4, 0, 0),
+		"ArmL": Vector3(-46.0 - rise * 24.0, 0, 26),
+		"ArmR": Vector3(-30.0 - rise * 14.0, 0, -18),
+		"LegL": Vector3(38.0 + rise * 16.0, 0, 0),
+		"LegR": Vector3(16.0 - rise * 10.0, 0, 0),
+		"WeaponPivot": Vector3(-34, 0, 0),
+	}, 12.0)
+
+## Tebasan menukik dari atas ke bawah.
+func _air_attack_visual(vis_time: float) -> void:
+	var a: Dictionary = Balance.AIR_ATTACK
+	var wind_end: float = float(a.hit_start) * 0.6
+	var wind := { "Torso": Vector3(-30, 0, 0), "ArmR": Vector3(-176, 0, 0),
+		"WeaponPivot": Vector3(-70, 0, 0) }
+	if vis_time < wind_end:
+		rig.pose(wind, 24.0)
+	else:
+		var k := clampf((vis_time - wind_end) / (float(a.hit_end) - wind_end), 0.0, 1.0)
+		k = k * k * (3.0 - 2.0 * k)
+		rig.snap({
+			"Torso": (wind.Torso as Vector3).lerp(Vector3(46, 0, 0), k),
+			"ArmR": (wind.ArmR as Vector3).lerp(Vector3(-16, 0, 0), k),
+			"WeaponPivot": (wind.WeaponPivot as Vector3).lerp(Vector3(4, 0, 0), k),
+		})
+	rig.pose({
+		"ArmL": Vector3(-40, 0, 34), "Head": Vector3(10, 0, 0),
+		"LegL": Vector3(26, 0, 0), "LegR": Vector3(10, 0, 0),
+	}, 16.0)
 
 func _dodge_visual(vis_time: float) -> void:
 	var d: Dictionary = Balance.DODGE
