@@ -30,6 +30,8 @@ var _seen := {}
 var _enemy_seen := {}
 var _events := {}
 var _meter_peak := 0.0
+var _ground_y := INF   # INF = belum pernah menyentuh lantai, jadi belum ada baseline
+var _jump_peak := 0.0
 
 const STEP_TIMEOUT := 6.0      # detik game-time; langkah yang menggantung = kegagalan
 const RESPAWN_TIMEOUT := 12.0
@@ -77,6 +79,13 @@ func _build_steps() -> void:
 		# dodge lalu serang keluar dari dodge
 		{ act = "dodge", wait = 0.50 },
 		{ act = "attack", wait = 0.50 },
+		# heavy dari berdiri, lalu heavy sebagai finisher kombo (A1 → R)
+		{ act = "heavy", idle_first = true, wait = 0.85 },
+		{ act = "attack", idle_first = true, wait = 0.24 },
+		{ act = "heavy", wait = 0.85 },
+		# lompat, lalu serang di udara
+		{ act = "jump", idle_first = true, wait = 0.22 },
+		{ act = "attack", wait = 0.70 },
 		# perfect parry: kontak tepat setelah window dibuka
 		{ act = "parry", idle_first = true,
 		  at_state = "PARRY", at_time = p.window_start + 0.02, send = white },
@@ -117,6 +126,7 @@ func _physics_process(delta: float) -> void:
 	if player != null and is_instance_valid(player):
 		_seen[player.state_name()] = true
 		_track_enemies()
+		_track_jump_height()
 		# Tab harus mengunci lalu MELEPAS, bukan menyiklus ke target lain
 		if player.lockon.target != null:
 			_mark("lockon_acquired")
@@ -161,6 +171,21 @@ func _physics_process(delta: float) -> void:
 	_idx += 1
 	_timeout = STEP_TIMEOUT
 	_run(step)
+
+## Ketinggian maksimum player di atas lantai terakhir yang dipijak. Ini bukan
+## murni puncak lompat: player juga bisa naik ke atas musuh atau tumpukan CRT,
+## dan justru skenario itulah yang harus tetap terjangkau musuh melee.
+##
+## Dipakai untuk assertion anti-air di _finish(): kalau nanti JUMP.speed
+## dinaikkan tanpa menaikkan jangkauan hitbox musuh, lompat diam-diam berubah
+## jadi tombol kebal dan tidak ada tes lain yang akan tahu.
+func _track_jump_height() -> void:
+	if player.is_on_floor():
+		_ground_y = player.global_position.y
+	elif _ground_y < INF:
+		# hanya diukur setelah ada baseline lantai yang sah — kalau tidak, teleport
+		# harness ikut terhitung dan angkanya menyesatkan
+		_jump_peak = maxf(_jump_peak, player.global_position.y - _ground_y)
 
 ## Catat state tiap jenis musuh + apakah telegraph & proyektilnya benar-benar hidup.
 func _track_enemies() -> void:
@@ -211,7 +236,7 @@ func _run(step: Dictionary) -> void:
 				k.hurtbox.receive(AttackData.make(lethal, player, "smoke"), player.hurtbox)
 		"heal":
 			player.health.heal_full()
-		"attack", "dodge", "parry", "skill", "lockon":
+		"attack", "dodge", "parry", "skill", "lockon", "heavy", "jump":
 			_tap(step.act)
 		"fill_meter":
 			player._add_meter(Balance.SKILL.meter_max)
@@ -310,6 +335,20 @@ func _finish() -> void:
 			missing.append("enemy_state:" + key)
 	if _meter_peak <= 0.0:
 		missing.append("meter_gain")
+
+	# --- anti-air: player yang melompat harus tetap terjangkau musuh melee ---
+	# Hurtbox player = capsule tinggi 1.65 di y=0.85 → sisi bawahnya y+0.025.
+	# Hitbox melee musuh menjangkau sampai melee_hitbox_y + tinggi/2.
+	var e: Dictionary = Balance.ENEMY_COMMON
+	var melee_top: float = float(e.melee_hitbox_y) + float(e.melee_hitbox_height) * 0.5
+	var hurt_bottom := _jump_peak + 0.025
+	print("[combat-smoke] ketinggian maks di udara %.2f m; dasar hurtbox %.2f m; jangkauan melee %.2f m"
+		% [_jump_peak, hurt_bottom, melee_top])
+	if _jump_peak < 0.5:
+		missing.append("jump_height(terlalu rendah: %.2f m — lompat mungkin tidak berfungsi)" % _jump_peak)
+	elif hurt_bottom >= melee_top:
+		missing.append("anti_air(ketinggian %.2f m melampaui jangkauan melee %.2f m — lompat jadi kebal)"
+			% [_jump_peak, melee_top])
 
 	if missing.is_empty():
 		print("[combat-smoke] OK — semua state & efek terverifikasi (meter puncak %.0f)" % _meter_peak)

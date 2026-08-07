@@ -50,7 +50,9 @@ func _update_text() -> void:
 		lines.append("state %s   t = %.3f s" % [player.state_name(), player.state_time])
 		lines.append("hp %.0f/%.0f   meter %.0f" % [player.health.hp, player.health.max_hp, player.meter])
 		var v: Vector3 = player.velocity
-		lines.append("speed %.2f m/s" % Vector2(v.x, v.z).length())
+		lines.append("speed %.2f m/s   vy %+.2f   y %.2f%s"
+			% [Vector2(v.x, v.z).length(), v.y, player.global_position.y,
+			   "" if player.is_on_floor() else "  (udara)"])
 		var lt: Node3D = player.lockon.target
 		lines.append("lockon: %s" % (String(lt.name) if lt != null and is_instance_valid(lt) else "-"))
 		lines.append("buffer: %s" % (player.buffered_action if player.buffered_action != "" else "-"))
@@ -119,6 +121,35 @@ func _state_spec() -> Dictionary:
 			return _attack_spec(1)
 		"ATTACK_3":
 			return _attack_spec(2)
+		"HEAVY":
+			var h := Balance.HEAVY
+			return {
+				duration = h.duration,
+				segments = [
+					{ from = h.hit_start, to = h.hit_end, color = Color(1.0, 0.45, 0.2, 0.9), label = "hitbox" },
+				],
+				markers = [
+					{ t = h.cancel_at, color = Color(1.0, 0.8, 0.2), label = "cancel" },
+				],
+			}
+		"AIR_ATTACK":
+			var aa := Balance.AIR_ATTACK
+			return {
+				duration = aa.duration,
+				segments = [
+					{ from = aa.hit_start, to = aa.hit_end, color = Color(1.0, 0.3, 0.35, 0.85), label = "hitbox" },
+				],
+				markers = [],
+			}
+		"JUMP":
+			var j := Balance.JUMP
+			return {
+				duration = 1.0,
+				segments = [
+					{ from = 0.0, to = j.takeoff_grace, color = Color(0.4, 0.6, 1.0, 0.7), label = "takeoff" },
+				],
+				markers = [],
+			}
 		"DODGE":
 			var d := Balance.DODGE
 			return {
