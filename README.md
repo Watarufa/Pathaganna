@@ -22,8 +22,11 @@ dirakit dari primitif, kode, dan partikel. Estetika stylized gelap ber-aksen neo
 | Gerak | WASD |
 | Kamera | Mouse |
 | Serang (kombo 3-hit) | Klik kiri |
+| Serangan udara | Klik kiri saat melompat |
+| Heavy attack | R |
+| Lompat | Space |
 | Parry | Klik kanan |
-| Dodge roll | Shift atau Space |
+| Dodge roll | Shift |
 | Skill | Q |
 | Lock-on: kunci / lepas | Tab |
 | Ganti target (saat terkunci) | Geser mouse ke arah musuh lain |

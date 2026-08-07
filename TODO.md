@@ -75,6 +75,16 @@ Protokol tiap milestone: (a) smoke test lolos, (b) TODO.md + CLAUDE.md diperbaru
 - [x] `# P1: essence drop here` di titik kematian (player.gd `_on_died`)
 - [x] Harness: aktivasi Ganna + respawn mendarat di checkpoint, bukan titik awal
 
+## M4.5 — Moveset (disisipkan atas permintaan user, sebelum M5)
+- [x] InputMap: Space=jump, Shift=dodge (Space dilepas), R=heavy
+- [x] Jump: state JUMP, coyote time, land lag, kontrol udara, pose udara
+- [x] Serangan udara: state AIR_ATTACK, menukik, mendarat memotong durasi
+- [x] Heavy attack: state HEAVY, dari berdiri **dan** finisher kombo dari A1/A2
+- [x] Anti-air musuh: hitbox melee 3.0 m + tidak menyerang kalau player terlalu tinggi
+- [x] Debug overlay: timeline HEAVY/AIR_ATTACK/JUMP + info vy & ketinggian
+- [x] Harness: state baru + assertion anti-air (ketinggian vs jangkauan melee)
+- [ ] **Feel gate: user main & nilai moveset baru**
+
 ## M5 — Boss & Layar
 - [ ] Arena + gerbang menutup
 - [ ] Fase 1 Berhala Pemancar (slam putih, sapuan merah, gelombang lantai, stagger + retak)

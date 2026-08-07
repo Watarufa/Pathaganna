@@ -35,8 +35,11 @@ Kultus kuno pemuja **"Siaran"** — sinyal dari sesuatu di seberang. Kuil batu d
 | Gerak | WASD | `move_forward/back/left/right` |
 | Kamera | Mouse | (mouse motion, captured) |
 | Serang (kombo 3-hit) | Klik kiri | `attack` |
+| Serangan udara | Klik kiri saat melompat | `attack` |
+| Heavy attack | R | `heavy` |
+| Lompat | Space | `jump` |
 | Parry | Klik kanan | `parry` |
-| Dodge roll | Shift **atau** Space | `dodge` |
+| Dodge roll | Shift | `dodge` |
 | Skill | Q | `skill` |
 | Lock-on: kunci / lepas | Tab | `lockon` |
 | Ganti target (saat terkunci) | Geser mouse ke arah musuh lain | (mouse motion) |
@@ -90,7 +93,17 @@ resources/materials/   # palet material .tres terpusat
 | A2 | 0.38 s | 0.12–0.24 s | 12 | 0.18 s | 0.24 s |
 | A3 finisher | 0.55 s | 0.20–0.34 s | 18 + knockback | 0.30 s | — (kombo selesai) |
 
-- **Input buffer global 0.15 s**: input terlalu awal disimpan, dieksekusi begitu window terbuka (serangan lanjutan, dodge, parry, skill). Diimplementasikan sejak awal M2.
+- **Input buffer global 0.15 s**: input terlalu awal disimpan, dieksekusi begitu window terbuka (serangan lanjutan, dodge, parry, skill, lompat, heavy). Diimplementasikan sejak awal M2.
+
+### Moveset tambahan (M4.5)
+
+| Gerakan | Durasi | Hitbox aktif | Damage | Catatan |
+|---|---|---|---|---|
+| Heavy (R) | 0.75 s | 0.32–0.50 s | 28 + knockback 9 | Dari berdiri **atau** menyambung A1/A2 sebagai finisher alternatif selain A3. Cancel ke dodge/parry dari 0.55 s. |
+| Lompat (Space) | — | — | — | 8.5 m/s vertikal → ketinggian ±1.5 m. Kontrol udara 65%, coyote time 0.10 s, land lag 0.10 s. |
+| Serangan udara (klik kiri di udara) | 0.55 s | 0.10–0.34 s | 16 + knockback 5 | Menukik 11 m/s; mendarat memotong sisa durasi supaya terasa seperti benturan. |
+
+**Anti-air (wajib, bukan opsional).** Hitbox melee semua musuh darat tingginya `ENEMY_COMMON.melee_hitbox_height` (3.0 m) pada offset `melee_hitbox_y` (1.3) → jangkauan y ≈ −0.2…2.8. Tanpa itu, player yang melompat melayang di luar jangkauan dan lompat menjadi tombol kebal. Musuh juga tidak memulai serangan kalau player lebih dari `max_attack_height` di atasnya — menebas angin terlihat seperti bug, bukan seperti musuh yang kalah posisi. Penyiar tidak dibatasi: proyektilnya mengarah ke posisi player, jadi sudah anti-air secara alami.
 - Dodge bisa meng-cancel serangan kapan pun setelah cancel point — identitas DMC.
 - Kombo reset jika idle > 0.5 s setelah serangan selesai.
 
@@ -289,6 +302,10 @@ Poin yang butuh penilaian manusia diverifikasi oleh user di M6, bukan dicentang 
 - **2026-07-09 — Harness `--combat-smoke`.** `--smoke` hanya membuktikan game boot; tanpa input, tidak satu pun jalur combat tereksekusi. Ditambahkan harness bertulis yang menjalankan kombo/dodge/parry/skill/mati lewat jalur input & Hurtbox asli, lalu memverifikasi lewat signal bus bahwa tiap state **dan efeknya** benar-benar terjadi (exit 1 kalau tidak). Dijadwalkan terhadap jam FSM player, bukan nomor frame — di headless, hitstop diukur real-time sementara loop berlari secepat CPU sehingga jadwal berbasis frame meleset jauh.
 - **2026-07-09 — Window lanjut kombo.** Spec hanya menyebut cancel ke dodge/parry. Ditambahkan: kombo tetap "hidup" selama `COMBO_RESET_TIME` (0.5 s) setelah serangan berakhir, jadi dodge-cancel di tengah kombo bisa dilanjutkan ke hit berikutnya alih-alih jatuh ke A1. Tanpa ini, dodge-cancel — identitas DMC-nya — justru menghukum pemain.
 - **2026-07-09 — Telegraph butuh gerakan, bukan cuma warna (feedback feel gate).** User menilai kedip putih/merah saja tidak cukup untuk membaca *kapan* pukulan datang. Ditambahkan sistem telegraph reusable (`scripts/systems/telegraph.gd` + `Balance.TELEGRAPH`): windup jadi fungsi langsung dari `state_time` dengan angkat progresif → anticipation → pukul, kedip layar mengencang lalu solid, dan **bentuk gerakan berbeda** untuk putih (tebasan atas) vs merah (sapuan samping) supaya terbaca dari siluet. Dibuat sebagai sistem bersama sejak awal karena Kultis, Penyiar, dan kedua fase boss semuanya membutuhkannya — menambalnya di dummy saja akan jadi hutang.
+- **2026-07-09 — M4.5: moveset ditambah sebelum M5 (keputusan user).** Jump, serangan udara, dan heavy attack dimajukan dari roadmap P1/P2 atas permintaan user. Saya sempat menyarankan menyelesaikan V1 dulu karena HP boss dituning terhadap DPS player, tapi user menimbangnya dan tetap memilih menambah sekarang. **Konsekuensi yang dicatat: `BOSS_P1.hp` / `BOSS_P2.hp` kemungkinan perlu naik saat M5** — akan dinilai saat menuning boss, bukan ditebak sekarang.
+- **2026-07-09 — M4.5: level TIDAK butuh pass ulang.** Kekhawatiran awal ternyata tidak berdasar setelah dihitung: dengan `gravity = 24` dan `JUMP.speed = 8.5`, ketinggian ±1.5 m. Dinding zona (6 m) dan pilar (4–5 m) tetap tak terjangkau; hanya tumpukan CRT (1.35–2.4 m) yang bisa dipijak, dan dari atasnya dinding masih aman. Yang benar-benar wajib hanyalah anti-air musuh.
+- **2026-07-09 — M4.5: jebakan `_apply_gravity` saat lompat.** `_apply_gravity()` menolkan kecepatan vertikal saat `is_on_floor()`. Kalau dipakai apa adanya di frame pertama lompat, kaki masih menyentuh lantai dan lompatnya gagal **tanpa error apa pun**. Karena itu `_st_jump` menerapkan gravitasi langsung dan pendaratan baru dicek setelah `takeoff_grace` (0.08 s). Akan terulang kalau nanti ada gerakan vertikal lain (mis. boss yang melompat).
+- **2026-07-09 — M4.5: Space dipindah dari dodge ke jump.** Dodge kini hanya di Shift. Konvensional, dan Space untuk lompat jauh lebih mudah diingat daripada tombol lain.
 - **2026-07-09 — M4: dummy latihan hanya untuk sesi dev.** Setelah level jadi kuil sungguhan, dummy merusak imersi. Ia kini hanya di-spawn saat ada arg `--smoke` / `--combat-smoke` / `--dummies`, jadi harness tetap punya target latihan yang deterministik tanpa mengotori level.
 - **2026-07-09 — M4: penempatan musuh 7 buah, bukan 6.** Spec menyebut 2 Kultis (zona 1) + 3 Kultis & 2 Penyiar (zona 2) = 7, sementara batas performa 6 **aktif bersamaan**. Jarak antar-zona dibuat lebih besar dari radius deteksi terjauh (14 m), jadi yang aktif serentak tidak pernah melebihi 5.
 - **2026-07-09 — M4: input Ganna di-poll, bukan `_unhandled_input`.** Konsisten dengan cara player membaca input, dan yang penting: `Input.action_press()` yang dipakai harness tidak menghasilkan `InputEvent`, jadi interaksi berbasis `_unhandled_input` tidak akan pernah bisa diuji otomatis.
