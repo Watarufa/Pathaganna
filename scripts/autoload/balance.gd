@@ -40,6 +40,36 @@ const COMBO_HITBOX := {
 	forward = 1.3,                              # offset pusat box dari player
 }
 
+# Lompat. Tinggi ~ speed^2 / (2 * gravity) = 8.5^2 / 48 ≈ 1.5 m — cukup untuk
+# terasa lincah, tapi tetap di bawah pilar (4–5 m) dan dinding zona (6 m).
+const JUMP := {
+	speed = 8.5,                 # m/s vertikal awal
+	air_control = 0.65,          # fraksi move_speed saat melayang
+	air_accel = 18.0,            # lebih lambat dari akselerasi darat → momentum terasa
+	coyote_time = 0.10,          # masih boleh lompat sesaat setelah lepas dari tepi
+	land_lag = 0.10,             # recovery singkat saat mendarat
+	takeoff_grace = 0.08,        # abaikan is_on_floor selama ini setelah lepas landas
+}
+
+# Serangan udara: menukik, dan mendarat memotong sisa durasinya supaya terasa
+# seperti benturan, bukan mengambang.
+const AIR_ATTACK := {
+	duration = 0.55, hit_start = 0.10, hit_end = 0.34,
+	damage = 16.0, knockback = 5.0, hitstop = 0.07,
+	dive_speed = 11.0,
+	name = "air",
+}
+
+# Serangan berat: lambat, damage besar, knockback kuat. Bisa dilepas dari
+# berdiri maupun menyambung dari A1/A2 sebagai finisher alternatif selain A3.
+const HEAVY := {
+	duration = 0.75, hit_start = 0.32, hit_end = 0.50,
+	damage = 28.0, knockback = 9.0, hitstop = 0.11,
+	cancel_at = 0.55,            # dodge/parry boleh memotong dari sini
+	lunge = 4.0,
+	name = "heavy",
+}
+
 const DODGE := {
 	duration = 0.45,
 	speed = 12.0,                # m/s dorongan ke arah input (mundur jika netral)
@@ -140,6 +170,14 @@ const ENEMY_COMMON := {
 	max_active = 6,              # batas performa musuh aktif bersamaan
 	stagger_time = 1.4,          # perfect parry vs musuh biasa
 	die_free_delay = 1.6,        # s sebelum jasad dibersihkan
+	# Anti-air: hitbox melee harus menjangkau player yang melompat (~1.5 m) dan
+	# yang berdiri di atas tumpukan CRT (maks 2.4 m). Jangkauan y ≈ -0.2 … 2.8.
+	# Tanpa ini, lompat jadi tombol kebal terhadap semua musuh melee.
+	melee_hitbox_height = 3.0,
+	melee_hitbox_y = 1.3,
+	# Jangan mulai serangan kalau player jauh di atas jangkauan — musuh yang
+	# menebas angin terlihat seperti bug, bukan seperti musuh yang kalah posisi.
+	max_attack_height = 2.6,
 }
 
 # Bentuk telegraph — berlaku untuk SEMUA musuh (fraksi windup, bukan detik,
