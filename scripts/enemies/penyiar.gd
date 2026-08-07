@@ -33,6 +33,11 @@ func _hitbox_shape() -> Shape3D:
 	b.size = Vector3(0.1, 0.1, 0.1)
 	return b
 
+## Ranged: proyektilnya mengarah ke posisi player, jadi ketinggian tidak
+## membatasi — Penyiar sudah anti-air secara alami.
+func _can_reach_height(_target: Node3D) -> bool:
+	return true
+
 ## Melayang: tubuh & hurtbox berpusat di node, dan node-lah yang naik ke
 ## ketinggian hover — supaya visual, hurtbox, dan titik lock-on selalu sejajar.
 func _body_capsule() -> Dictionary:

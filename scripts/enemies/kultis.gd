@@ -32,11 +32,12 @@ func _stats() -> Dictionary:
 
 func _hitbox_shape() -> Shape3D:
 	var b := BoxShape3D.new()
-	b.size = Vector3(1.8, 1.8, float(Balance.KULTIS.slash.range))
+	b.size = Vector3(1.8, Balance.ENEMY_COMMON.melee_hitbox_height, float(Balance.KULTIS.slash.range))
 	return b
 
 func _hitbox_offset() -> Vector3:
-	return Vector3(0, 1.0, -float(Balance.KULTIS.slash.range) * 0.5)
+	return Vector3(0, Balance.ENEMY_COMMON.melee_hitbox_y,
+		-float(Balance.KULTIS.slash.range) * 0.5)
 
 func _build_body() -> void:
 	rig.add_pivot("Hips", "", Vector3(0, 0.9, 0))

@@ -127,13 +127,15 @@ func _body_capsule() -> Dictionary:
 func _hurtbox_capsule() -> Dictionary:
 	return { radius = 0.45, height = 1.7, y = 1.0 }
 
+## Tinggi hitbox melee dibaca dari ENEMY_COMMON supaya semua musuh darat
+## sama-sama bisa menjangkau player yang melompat — lihat catatan anti-air.
 func _hitbox_shape() -> Shape3D:
 	var b := BoxShape3D.new()
-	b.size = Vector3(1.8, 1.8, 2.0)
+	b.size = Vector3(1.8, Balance.ENEMY_COMMON.melee_hitbox_height, 2.0)
 	return b
 
 func _hitbox_offset() -> Vector3:
-	return Vector3(0, 1.0, -1.0)
+	return Vector3(0, Balance.ENEMY_COMMON.melee_hitbox_y, -1.0)
 
 ## Serangan berikutnya, atau {} kalau belum saatnya menyerang.
 func _pick_attack(_dist: float) -> Dictionary:
@@ -215,10 +217,16 @@ func _st_chase(delta: float, target: Node3D, dist: float) -> void:
 		_change_state(State.IDLE)
 		return
 	_ai_move(delta, target, dist)
-	if _cooldown <= 0.0:
+	if _cooldown <= 0.0 and _can_reach_height(target):
 		var atk := _pick_attack(dist)
 		if not atk.is_empty():
 			begin_attack(atk)
+
+## Jangan mulai serangan kalau player jauh di atas jangkauan hitbox: musuh yang
+## menebas angin terlihat seperti bug, bukan seperti musuh yang kalah posisi.
+## Musuh ranged menimpa ini dengan true — proyektilnya mengarah ke player.
+func _can_reach_height(target: Node3D) -> bool:
+	return target.global_position.y - global_position.y <= Balance.ENEMY_COMMON.max_attack_height
 
 func _st_windup() -> void:
 	if state_time >= float(current.windup):
